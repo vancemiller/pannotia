@@ -1,1 +1,8 @@
 bin
+*.out
+*.txt
+*.o
+*.b
+*.r
+*.g
+*.gch
