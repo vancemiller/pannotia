@@ -9,6 +9,7 @@
 #include <float.h>
 #include <vector>
 #include "cuda.h"
+#include <assert.h>
 
 #define min( a, b )     a > b ? b : a
 #define ceilDiv( a, b )   ( a + b - 1 ) / b
@@ -35,56 +36,50 @@ typedef struct record
   float distance;
 } Record;
 
-int loadData(char *filename,std::vector<Record> &records,std::vector<LatLong> &locations);
+int loadData(char *filename, std::vector<Record> &records, LatLong** locations, bool unified);
 void findLowest(std::vector<Record> &records,float *distances,int numRecords,int topN);
 void printUsage();
 int parseCommandline(int argc, char *argv[], char* filename,int *r,float *lat,float *lng,
-    int *q, int *t, int *p, int *d);
+    int *q, int *t, int *p, int *d, bool* u);
 
 /**
  * Kernel
  * Executed on GPU
  * Calculates the Euclidean distance from each record in the database to the target position
  */
-__global__ void euclid(LatLong *d_locations, float *d_distances, int numRecords,float lat, float lng)
-{
-  //int globalId = gridDim.x * blockDim.x * blockIdx.y + blockDim.x * blockIdx.x + threadIdx.x;
-  int globalId = blockDim.x * ( gridDim.x * blockIdx.y + blockIdx.x ) + threadIdx.x; // more efficient
-  LatLong *latLong = d_locations+globalId;
+__global__ void euclid(LatLong* locations, float* distances, int numRecords,float lat, float lng) {
+  int globalId = blockDim.x * ( gridDim.x * blockIdx.y + blockIdx.x ) + threadIdx.x;
+  LatLong* latLong = locations + globalId;
   if (globalId < numRecords) {
-    float *dist=d_distances+globalId;
-    *dist = (float)sqrt((lat-latLong->lat)*(lat-latLong->lat)+(lng-latLong->lng)*(lng-latLong->lng));
+    float* dist = distances + globalId;
+    *dist = (float) sqrt((lat - latLong->lat) * (lat - latLong->lat) + (lng - latLong->lng) *
+        (lng - latLong->lng));
   }
 }
 
 /**
  * This program finds the k-nearest neighbors
  **/
-
-int main(int argc, char* argv[])
-{
-  int    i=0;
+int main(int argc, char* argv[]) {
+  int    i = 0;
   float lat, lng;
-  int quiet=0,timing=0,platform=0,device=0;
+  int quiet = 0, timing = 0, platform = 0, device = 0;
+  bool unified = false;
 
   std::vector<Record> records;
-  std::vector<LatLong> locations;
+  LatLong* locations;
   char filename[100];
   int resultsCount=10;
 
   // parse command line
-  if (parseCommandline(argc, argv, filename,&resultsCount,&lat,&lng,
-        &quiet, &timing, &platform, &device)) {
+  if (parseCommandline(argc, argv, filename, &resultsCount, &lat, &lng,
+        &quiet, &timing, &platform, &device, &unified)) {
     printUsage();
     return 0;
   }
 
-  int numRecords = loadData(filename,records,locations);
+  int numRecords = loadData(filename, records, &locations, unified);
   if (resultsCount > numRecords) resultsCount = numRecords;
-
-  //for(i=0;i<numRecords;i++)
-  //  printf("%s, %f, %f\n",(records[i].recString),locations[i].lat,locations[i].lng);
-
 
   //Pointers to host memory
   float *distances;
@@ -92,16 +87,15 @@ int main(int argc, char* argv[])
   LatLong *d_locations;
   float *d_distances;
 
-
   // Scaling calculations - added by Sam Kauffman
   cudaDeviceProp deviceProp;
-  cudaGetDeviceProperties( &deviceProp, 0 );
+  cudaGetDeviceProperties(&deviceProp, 0);
   cudaThreadSynchronize();
   unsigned long maxGridX = deviceProp.maxGridSize[0];
-  unsigned long threadsPerBlock = min( deviceProp.maxThreadsPerBlock, DEFAULT_THREADS_PER_BLOCK );
+  unsigned long threadsPerBlock = min(deviceProp.maxThreadsPerBlock, DEFAULT_THREADS_PER_BLOCK);
   size_t totalDeviceMemory;
   size_t freeDeviceMemory;
-  cudaMemGetInfo(  &freeDeviceMemory, &totalDeviceMemory );
+  cudaMemGetInfo(&freeDeviceMemory, &totalDeviceMemory);
   cudaThreadSynchronize();
   unsigned long usableDeviceMemory = freeDeviceMemory * 85 / 100; // 85% arbitrary throttle to compensate for known CUDA bug
   unsigned long maxThreads = usableDeviceMemory / 12; // 4 bytes in 3 vectors per thread
@@ -133,65 +127,84 @@ int main(int argc, char* argv[])
   /**
    * Allocate memory on host and device
    */
-  distances = (float *)malloc(sizeof(float) * numRecords);
-  cudaMalloc((void **) &d_locations,sizeof(LatLong) * numRecords);
-  cudaMalloc((void **) &d_distances,sizeof(float) * numRecords);
-
+  if (!unified) {
+    distances = (float *) malloc(sizeof(float) * numRecords);
+    cudaMalloc((void **) &d_locations,sizeof(LatLong) * numRecords);
+    cudaMalloc((void **) &d_distances,sizeof(float) * numRecords);
+  } else {
+    assert(cudaMallocManaged(&distances, sizeof(float) * numRecords) == cudaSuccess);
+  }
   /**
    * Transfer data from host to device
    */
-  cudaMemcpy( d_locations, &locations[0], sizeof(LatLong) * numRecords, cudaMemcpyHostToDevice);
+  if (!unified) {
+    cudaMemcpy(d_locations, locations, sizeof(LatLong) * numRecords, cudaMemcpyHostToDevice);
+  }
 
   /**
    * Execute kernel
    */
-  euclid<<< gridDim, threadsPerBlock >>>(d_locations,d_distances,numRecords,lat,lng);
+  if (!unified) {
+    euclid<<<gridDim, threadsPerBlock>>>(d_locations, d_distances, numRecords, lat, lng);
+  } else {
+    euclid<<<gridDim, threadsPerBlock>>>(locations, distances, numRecords, lat, lng);
+  }
   cudaThreadSynchronize();
 
   //Copy data from device memory to host memory
-  cudaMemcpy( distances, d_distances, sizeof(float)*numRecords, cudaMemcpyDeviceToHost );
+  if (!unified) {
+    cudaMemcpy( distances, d_distances, sizeof(float)*numRecords, cudaMemcpyDeviceToHost );
+  }
 
   // find the resultsCount least distances
-  findLowest(records,distances,numRecords,resultsCount);
+  findLowest(records, distances, numRecords, resultsCount);
 
   // print out results
-  if (!quiet)
+  if (!quiet) {
     for(i=0;i<resultsCount;i++) {
       printf("%s --> Distance=%f\n",records[i].recString,records[i].distance);
     }
-  free(distances);
-  //Free memory
-  cudaFree(d_locations);
-  cudaFree(d_distances);
+  }
+  if (!unified) {
+    free(locations);
+    free(distances);
+    //Free memory
+    cudaFree(d_locations);
+    cudaFree(d_distances);
+  } else {
+    cudaFree(locations);
+    cudaFree(distances);
+  }
 
 }
 
-int loadData(char *filename,std::vector<Record> &records,std::vector<LatLong> &locations){
-  FILE   *flist,*fp;
-  int    i=0;
+int loadData (char *filename, std::vector<Record> &records, LatLong** loc, bool unified) {
+  FILE   *flist, *fp;
+  int    i = 0;
   char dbname[64];
   int recNum=0;
+  std::vector<LatLong> locations;
 
   /**Main processing **/
 
   flist = fopen(filename, "r");
-  while(!feof(flist)) {
+  while (!feof(flist)) {
     /**
      * Read in all records of length REC_LENGTH
      * If this is the last file in the filelist, then done
      * else open next file to be read next iteration
      */
-    if(fscanf(flist, "%s\n", dbname) != 1) {
+    if (fscanf(flist, "%s\n", dbname) != 1) {
       fprintf(stderr, "error reading filelist\n");
       exit(0);
     }
     fp = fopen(dbname, "r");
-    if(!fp) {
+    if (!fp) {
       printf("error opening a db\n");
       exit(1);
     }
     // read each record
-    while(!feof(fp)){
+    while (!feof(fp)) {
       Record record;
       LatLong latLong;
       fgets(record.recString,49,fp);
@@ -216,7 +229,16 @@ int loadData(char *filename,std::vector<Record> &records,std::vector<LatLong> &l
     fclose(fp);
   }
   fclose(flist);
-  //    for(i=0;i<rec_count*REC_LENGTH;i++) printf("%c",sandbox[i]);
+
+  if (!unified) {
+    *loc = (LatLong*) malloc(sizeof(LatLong) * locations.size());
+  } else {
+    assert(cudaMallocManaged(loc, sizeof(LatLong) * locations.size()) == cudaSuccess);
+  }
+  for (int i = 0; i < locations.size(); i++) {
+    (*loc)[i] = locations[i];
+  }
+
   return recNum;
 }
 
@@ -248,7 +270,7 @@ void findLowest(std::vector<Record> &records,float *distances,int numRecords,int
 }
 
 int parseCommandline(int argc, char *argv[], char* filename,int *r,float *lat,float *lng,
-    int *q, int *t, int *p, int *d){
+    int *q, int *t, int *p, int *d, bool* u){
   int i;
   if (argc < 2) return 1; // error
   strncpy(filename,argv[1],100);
@@ -278,6 +300,9 @@ int parseCommandline(int argc, char *argv[], char* filename,int *r,float *lat,fl
           break;
         case 't': // timing
           *t = 1;
+          break;
+        case 'u': // unified memory
+          *u = true;
           break;
         case 'p': // platform
           i++;
