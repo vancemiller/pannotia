@@ -14,7 +14,8 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <assert.h>
-#include <stdint.h> 
+#include <stdint.h>
+#include <unistd.h>
 
 #define ulong4 uint32_t
 #define uint4 uint32_t
@@ -64,7 +65,7 @@ unsigned char b2i(char base)
     case 'T' : return 3;
     case '$' : return 4;
 
-    default: 
+    default:
       cerr << "Unknown base: " << base << endl;
       return b2i('A');
   };
@@ -109,10 +110,10 @@ public:
   /** \brief Pretty-print the duration in seconds.
    ** If stop() has not already been called, uses the current time as the end
    ** time.
-   ** \param format Controls if time should be enclosed in [ ] 
+   ** \param format Controls if time should be enclosed in [ ]
    ** \param precision Controls number of digits past decimal pt
    **/
-  std::string str(bool format = true, 
+  std::string str(bool format = true,
                   int precision=2)
   {
     double r = duration();
@@ -156,17 +157,17 @@ public:
 
   SuffixNode(int s, int e, int leafid,
              SuffixNode * p, SuffixNode * x)
-    : m_start(s), m_end(e), 
+    : m_start(s), m_end(e),
       m_nodeid(++s_nodecount),
       m_leafid(leafid),
       m_numleaves(0),
-      m_parent(p), 
+      m_parent(p),
 	  m_suffix(x),
       m_printParent(NULL)
   {
     for (int i = 0; i < basecount; i++)
     { m_children[i] = NULL; }
-	
+
 	m_depth = len();
 	if (p)
 	   m_depth += p->m_depth;
@@ -240,7 +241,7 @@ public:
   }
 
   int depth()
-  { 
+  {
 	 return m_depth;
   }
 
@@ -254,8 +255,8 @@ public:
     {
       os << "\"" << str(refstr) << "\"";
 
-       //  << " [" << m_start 
-       //  << ","  << m_end 
+       //  << " [" << m_start
+       //  << ","  << m_end
        //  << "(" << m_nodeid << ")\"";
     }
 
@@ -328,7 +329,7 @@ class SuffixTree
 {
 public:
   SuffixTree(const char * s) : m_string(s)
-  { 
+  {
     m_strlen = strlen(s);
 #ifdef MPOOL
     m_root = new (&m_pool) SuffixNode(0,0,0,NULL,NULL); // whole tree
@@ -413,7 +414,7 @@ public:
     dfile << "digraph G {" << endl;
     dfile << " size=\"7.5,10\"" << endl;
     dfile << " center=true" << endl;
-    dfile << " label=\"Suffix tree of \'" << m_string << "\' len:" 
+    dfile << " label=\"Suffix tree of \'" << m_string << "\' len:"
           << m_strlen-1 << " nc:"
           << SuffixNode::s_nodecount << "\"" << endl;
 
@@ -442,7 +443,7 @@ public:
   // Print the tree in Text
   void printText(ostream & out)
   {
-    out << "Suffix Tree len=" << m_strlen-1 << endl; 
+    out << "Suffix Tree len=" << m_strlen-1 << endl;
     out << "String: \"" << m_string << "\"" << endl;
     out << "+" << endl;
     printNodeText(out, m_root, 0);
@@ -488,9 +489,9 @@ public:
       out << node->m_children[i]->id() << "\t";
     }
 
-	out << node->m_start << "\t" << node->m_end << "\t"; 
+	out << node->m_start << "\t" << node->m_end << "\t";
 
-    if (node == m_root) { out << "ROOT" << endl; } 
+    if (node == m_root) { out << "ROOT" << endl; }
     else                { out << node->str(m_string) << endl; }
 
     for (int i = 0; i < basecount; i++)
@@ -574,7 +575,7 @@ public:
     if (err) { exit(1); }
   }
 #endif
-  
+
 
   void buildUkkonen()
   {
@@ -619,11 +620,11 @@ public:
         node = firstleaf;
       }
 
-      if (DEBUG) 
-      { 
+      if (DEBUG)
+      {
         char next = m_string[i];
         cerr << endl;
-        cerr << i << ".0 " << "Phase " << i << " adding " << next << " starting with " << startj << endl; 
+        cerr << i << ".0 " << "Phase " << i << " adding " << next << " starting with " << startj << endl;
 
         string beta = substr(m_string, 1, i);
         cerr << i << ".1" << " Extension 1: \"" << beta << "\" [implicit]" << endl;
@@ -631,7 +632,7 @@ public:
 
       for (int j = startj; j <= i; j++)
       {
-        // Goal: Ensure S[j .. i] (beta) is in the suffix tree 
+        // Goal: Ensure S[j .. i] (beta) is in the suffix tree
         // Precondition: S[j-1 .. i] (alpha) is in the suffix tree "near" node
         //               All Internal nodes have a suffix link
 
@@ -652,7 +653,7 @@ public:
           string beta = substr(m_string, j, i-j+1);
           cerr << i << "." << j << " Phase " << i << " Extension " << j << ": \"" << beta << "\" bp:" << betapos << endl;
 
-          cerr << i << "." << j << "  Walking up from n:"; 
+          cerr << i << "." << j << "  Walking up from n:";
           node->printLabel(cerr, m_string) << " nw: " << nodewalk << endl;
         }
 
@@ -669,7 +670,7 @@ public:
             // 5 = i-2+1
             //                 o ----- o
             //               5 A       A 5  <-
-            //            -> 6 T       T 6 
+            //            -> 6 T       T 6
 
             betapos -= nodewalk-1;
 
@@ -680,7 +681,7 @@ public:
           }
           else
           {
-            // Exactly at a node or leaf. 
+            // Exactly at a node or leaf.
             // Walk up to parent, subtracting length of that edge
             int len = node->len(i);
             betapos -= len-1;
@@ -691,7 +692,7 @@ public:
               cerr << i << "." << j << "   Adjusted len: " << len << endl;
             }
           }
-          
+
           if (DEBUG)
           {
             cerr << i << "." << j << "   parent bp: " << betapos <<  " n:";
@@ -754,7 +755,7 @@ public:
           {
             cerr << i << "." << j << "  node betapos: " << betapos << "[" << base << "] n:";
             node->printLabel(cerr, m_string) << " ";
-            if (child) { cerr << "c: "; child->printLabel(cerr, m_string); } 
+            if (child) { cerr << "c: "; child->printLabel(cerr, m_string); }
             cerr << endl;
           }
 
@@ -778,7 +779,7 @@ public:
 #else
             SuffixNode * newnode = new SuffixNode(betapos, len, j, node, NULL); // leaf: j
 #endif
-            node->m_children[b] = newnode; 
+            node->m_children[b] = newnode;
             lastleaf = newnode;
 
             if (DEBUG)
@@ -789,7 +790,7 @@ public:
 
             node = newnode;
 
-            // This is the first base that differs, but the edgelength to 
+            // This is the first base that differs, but the edgelength to
             // i may be longer. Therefore set nodewalk to 0, so the entire
             // edge is subtracted.
             nodewalk = 0;
@@ -875,7 +876,7 @@ public:
               nodebase = m_string[nodepos];
 
               #if VERBOSE
-                cerr << i << "." << j << "   child bp: " << betapos << "[" << m_string[betapos] 
+                cerr << i << "." << j << "   child bp: " << betapos << "[" << m_string[betapos]
                      << "] nb [" << nodebase << "]" << endl;
               #endif
 
@@ -933,8 +934,8 @@ public:
 
                     if (DOINTERNALSKIP)
                     {
-                      // Since we hit an internal match on a non-leaf, we know every other 
-                      // extension in this phase will also hit an internal match. 
+                      // Since we hit an internal match on a non-leaf, we know every other
+                      // extension in this phase will also hit an internal match.
 
                       // Have to be careful since leafs get the full string immediately, but
                       // they really have a Rule 1 extension
@@ -942,7 +943,7 @@ public:
                       int skip = i-j;
 
                       if (DEBUG)
-                      { 
+                      {
                         cerr << i << "." << j << "    Implicit Extension... skipping rest of phase, saved " << skip << endl;
                       }
 
@@ -1001,7 +1002,7 @@ public:
 #endif
                 lastleaf = newnode;
 
-                split->m_children[b2i(m_string[betapos])] = newnode; 
+                split->m_children[b2i(m_string[betapos])] = newnode;
                 splitnode = newnode;
 
                 node = newnode;
@@ -1012,7 +1013,7 @@ public:
                   newnode->printLabel(cerr, m_string) << endl;
                 }
 
-                // This is the first base that differs, but the edgelength to 
+                // This is the first base that differs, but the edgelength to
                 // i may be longer. Therefore set nodewalk to 0, so the entire
                 // edge is subtracted.
                 nodewalk = 0;
@@ -1064,7 +1065,7 @@ inline TextureAddress id2addr(int id)
   retval.x = bigx >> 5;
 
   // now stuff y's 13th bit into x's 12th bit
-  
+
   retval.x |= (retval.y & 0x1000) >> 1;
   retval.y &= 0xFFF;
 
@@ -1147,9 +1148,9 @@ void buildNodeTexture(SuffixNode * node,
                       PixelOfChildren * childrenTexture,
                       AuxiliaryNodeData aux_data[],
                       const char * refstr)
-{	
+{
   int origid = node->id();
-    
+
   aux_data[origid].length = node->len();
   aux_data[origid].numleaves = node->m_numleaves;
   aux_data[origid].printParent = id2addr(node->m_printParent->id());
@@ -1232,9 +1233,9 @@ void buildNodeTexture(SuffixNode * node,
   nd->depth[0]  = LOW3(depth);
   nd->depth[1]  = MID3(depth);
   nd->depth[2]  = HI3(depth);
-    
+
   assert(MK3(nd->depth) == depth);
-    
+
   cd->leafchar = 0;
 
   if (node->m_leafid != 0)
@@ -1247,69 +1248,69 @@ void buildNodeTexture(SuffixNode * node,
   }
   else
   {
-    if (node->m_children[0]) 
-    { 
+    if (node->m_children[0])
+    {
       TextureAddress childaddr = id2addr(node->m_children[0]->id());
       writeAddress(cd->a, childaddr);
       assert(arrayToAddress(cd->a).data == childaddr.data);
-      buildNodeTexture(node->m_children[0], nodeTexture, childrenTexture, aux_data, refstr); 
+      buildNodeTexture(node->m_children[0], nodeTexture, childrenTexture, aux_data, refstr);
     }
-            
-    if (node->m_children[1]) 
-    { 
+
+    if (node->m_children[1])
+    {
       TextureAddress childaddr = id2addr(node->m_children[1]->id());
       writeAddress(cd->c, childaddr);
       assert(arrayToAddress(cd->c).data == childaddr.data);
-      buildNodeTexture(node->m_children[1], nodeTexture, childrenTexture, aux_data, refstr); 
+      buildNodeTexture(node->m_children[1], nodeTexture, childrenTexture, aux_data, refstr);
     }
 
-    if (node->m_children[2]) 
-    { 
+    if (node->m_children[2])
+    {
       TextureAddress childaddr = id2addr(node->m_children[2]->id());
       writeAddress(cd->g, childaddr);
       assert(arrayToAddress(cd->g).data == childaddr.data);
-      buildNodeTexture(node->m_children[2], nodeTexture, childrenTexture, aux_data, refstr); 
+      buildNodeTexture(node->m_children[2], nodeTexture, childrenTexture, aux_data, refstr);
     }
 
-    if (node->m_children[3]) 
-    { 
+    if (node->m_children[3])
+    {
       TextureAddress childaddr = id2addr(node->m_children[3]->id());
       writeAddress(cd->t, childaddr);
       assert(arrayToAddress(cd->t).data == childaddr.data);
-      buildNodeTexture(node->m_children[3], nodeTexture, childrenTexture, aux_data, refstr); 
+      buildNodeTexture(node->m_children[3], nodeTexture, childrenTexture, aux_data, refstr);
     }
 
-    if (node->m_children[4]) 
-    { 
+    if (node->m_children[4])
+    {
       TextureAddress childaddr = id2addr(node->m_children[4]->id());
       writeAddress(cd->d, childaddr);
       assert(arrayToAddress(cd->d).data == childaddr.data);
-      buildNodeTexture(node->m_children[4], nodeTexture, childrenTexture, aux_data, refstr); 
+      buildNodeTexture(node->m_children[4], nodeTexture, childrenTexture, aux_data, refstr);
     }
   }
 }
 
 void buildSuffixTreeTexture(PixelOfNode** nodeTexture,
                             PixelOfChildren **childrenTexture,
-                            unsigned int* width, 
+                            unsigned int* width,
                             unsigned int* node_height,
                             unsigned int* children_height,
                             AuxiliaryNodeData **aux_data,
                             const char * refstr,
-                            int min_match_len) 
+                            int min_match_len)
 {
     // Leave space for NULL node
     int allnodes = SuffixNode::s_nodecount + 1;
 
     assert(allnodes < MAX_TEXTURE_DIMENSION*MAX_TEXTURE_DIMENSION);
-    
+
     assert(sizeof(PixelOfNode) == 16);
     assert(sizeof(PixelOfChildren) == 16);
-    
+
 
 #if MERGETEX && REORDER_TREE
     *width = MAX_TEXTURE_DIMENSION;
-    
+
 	int numrows = ((int)ceil((allnodes+0.0) / ((MAX_TEXTURE_DIMENSION/2) * TEXBLOCKSIZE))) * TEXBLOCKSIZE;
     if (numrows <= MAX_TEXTURE_DIMENSION)
     {
@@ -1362,21 +1363,21 @@ void buildSuffixTreeTexture(PixelOfNode** nodeTexture,
       *childrenTexture = (PixelOfChildren*) calloc((*width) * (*children_height), sizeof(PixelOfChildren));
       alloc += (*width) * (*children_height) * sizeof(PixelOfChildren);
     }
-    
+
     fprintf(stderr, " node: %dx%d",     *width, *node_height);
     fprintf(stderr, " children: %dx%d ", *width, *children_height);
 
     *aux_data = (AuxiliaryNodeData*)calloc(allnodes, sizeof(AuxiliaryNodeData));
 
-    if (!*nodeTexture || (*children_height && !*childrenTexture) || !*aux_data) 
+    if (!*nodeTexture || (*children_height && !*childrenTexture) || !*aux_data)
     {
         fprintf(stderr, "arg.  texture allocation failed.\n");
         exit(-1);
     }
-    
+
     gtree->m_root->setNumLeaves();
     gtree->m_root->setPrintParent(min_match_len);
-    
+
     buildNodeTexture(gtree->m_root,
                      *nodeTexture,
                      *childrenTexture,
@@ -1398,7 +1399,7 @@ void printTreeTexture(const char * texfilename,
   texfile << "id\tx\ty\tstart\tend\tdepth\ta.x\ta.y\tc.x\tc.y\tg.x\tg.y\tt.x\tt.y\t$.x\t$.y\tp.x\tp.y" << endl;
   for (int i = 0; i < nodecount; i++)
   {
-    TextureAddress myaddress(id2addr(i)); 
+    TextureAddress myaddress(id2addr(i));
 
     texfile << i << "\t"
             << myaddress.x << "\t"
@@ -1464,7 +1465,7 @@ void renumberTree()
 
     SuffixNode * node = npair.first;
     int depth = npair.second;
-    
+
     node->m_nodeid = ++nodecount;
 
     if (depth < 16)
@@ -1483,7 +1484,7 @@ void renumberTree()
         if (child)
         {
           child->m_nodeid = ++nodecount;
-          
+
           for(int j = 0; j < basecount; j++)
           {
             SuffixNode * gchild = child->m_children[j];
@@ -1496,7 +1497,7 @@ void renumberTree()
                 SuffixNode * ggchild = gchild->m_children[k];
 
                 if (ggchild)
-                { 
+                {
                   ggchild->m_nodeid = ++nodecount;
 
                   for (int l = 0; l < basecount; l++)
@@ -1552,11 +1553,11 @@ void createTreeTexture(const char * refstr,
 	if (statistics)
 		statistics->t_tree_construction += getTimerValue(ctimer);
 	deleteTimer(ctimer);
-	
+
     cerr << SuffixNode::s_nodecount << " nodes "
     << btimer.str(true, 5) << endl;
 
-#if RENUMBER_TREE    
+#if RENUMBER_TREE
     cerr << "  Renumbering tree... ";
     EventTime_t rtimer;
     char* reordertimer = createTimer();
@@ -1568,7 +1569,7 @@ void createTreeTexture(const char * refstr,
     deleteTimer(reordertimer);
     cerr << rtimer.str(true, 5) << endl;
 #endif
-    
+
     EventTime_t ftimer;
     cerr << "  Flattening Tree... ";
     char* flattentimer = createTimer();
@@ -1582,16 +1583,16 @@ void createTreeTexture(const char * refstr,
     stopTimer(flattentimer);
     if (statistics)
         statistics->t_tree_flatten += getTimerValue(flattentimer);
-    deleteTimer(flattentimer);  
+    deleteTimer(flattentimer);
 
     *num_nodes = SuffixNode::s_nodecount + 1;
     cerr << ftimer.str(true, 5) << endl;
-    
+
     if (dotfilename)
     {
         gtree->printDot(dotfilename);
     }
-    
+
     if (texfilename)
     {
         printTreeTexture(texfilename,
@@ -1599,7 +1600,7 @@ void createTreeTexture(const char * refstr,
                          *childrenTexture,
                          SuffixNode::s_nodecount + 1);
     }
-    
+
     delete gtree;
     gtree = NULL;
 }
@@ -1641,7 +1642,7 @@ void getReferenceString(const char * filename, char** refstr, size_t* reflen)
     if (buffer[0] == '>')
     {
       cerr << endl
-           << "ERROR: Only a single reference sequence is supported!" 
+           << "ERROR: Only a single reference sequence is supported!"
            << endl;
 
       exit (1);
@@ -1694,9 +1695,9 @@ inline size_t bytesNeededOnGPU(unsigned int querylen, int min_match_len)
    if (min_match_len == -1)
 	  return sizeof(MatchCoord) + (querylen + 10);
    else
-	  return sizeof(MatchCoord) * (querylen - min_match_len + 1) + 
+	  return sizeof(MatchCoord) * (querylen - min_match_len + 1) +
 		(querylen + 10);
-} 
+}
 
 #define WARP_SIZE 16
 
@@ -1715,64 +1716,64 @@ extern "C"
                            bool rc)
 {
     EventTime_t timer;
-    
+
     int qstringpos = 0;
     int qstringsize = 1024 * 1024;
     char * qstring = (char *) malloc(qstringsize);
-    
+
     bool resetAmbiguity  = true;
-    
+
     // offset of query i in qstring
     int offsetspos = 0;
     int offsetssize = 1024;
     int * offsets = (int *) malloc(offsetssize * sizeof(int));
     int * lengths = (int *) malloc(offsetssize * sizeof(int));
-    
+
     int qrylen = 0;
     int this_qrylen = 0;
-    
+
     int bytes_read;
     unsigned char buf[32*1024];
-    
+
     vector<char*> names;
     string header;
     bool inheader = false;
     int total_read = 0;
-    
+
     unsigned char dnachar [256];
-    
+
     bool set_full = false;
-    
+
 #if COALESCED_QUERIES
     unsigned int curr_warp_padding = 0;
     unsigned int warp_max_qry_len = 2;
 #endif
-    
+
     // tracks the GPU memory needed by the queries read so far.
     unsigned int  curr_mem_usage = 0;
-    
+
     for (int i = 0; i < 256; i++)
     {
         dnachar[i] = 0;
     }
-    
+
     dnachar[(unsigned char) 'A'] = 1;
     dnachar[(unsigned char) 'C'] = 1;
     dnachar[(unsigned char) 'G'] = 1;
     dnachar[(unsigned char) 'T'] = 1;
-    
+
     while ((bytes_read = read(qfile, buf, sizeof(buf))) != 0)
     {
         // cerr << "bytes_read: " << bytes_read << endl;
-        
+
         if (bytes_read == -1)
         {
             cerr << "ERROR: Error reading file: " << errno << endl;
             exit(1);
         }
-        
+
         int i = 0;
-        
+
         if (inheader)
         {
             // Handle case where last read was inside a header
@@ -1793,14 +1794,14 @@ extern "C"
                 }
             }
         }
-        
+
         for (; i < bytes_read; i++)
         {
             unsigned char b = toupper(buf[i]);
-            
+
             if (b == '>')
             {
-            
+
                 if (curr_mem_usage + bytesNeededOnGPU(MAX_QUERY_LEN, min_match_length) >= memory_avail)
                 {
                     set_full = true;
@@ -1812,8 +1813,8 @@ extern "C"
                     }
                     break;
                 }
-                
-                
+
+
                 // in a header line
                 if (offsetspos != 0)
                 {
@@ -1834,14 +1835,14 @@ extern "C"
                         if (warp_max_qry_len < this_qrylen + 2)
                         {
                             int num_warp_queries = (offsetspos - 1) % WARP_SIZE;
-                            
+
                             curr_warp_padding -= num_warp_queries * warp_max_qry_len;
                             curr_mem_usage -= num_warp_queries * warp_max_qry_len;
-                            
+
                             warp_max_qry_len = this_qrylen  + 2;
                             if (warp_max_qry_len % 4)
                                 warp_max_qry_len += 4 - (warp_max_qry_len % 4);
-                                
+
                             curr_warp_padding += num_warp_queries * warp_max_qry_len;
                             curr_mem_usage += num_warp_queries * warp_max_qry_len;
                         }
@@ -1855,7 +1856,7 @@ extern "C"
 #endif
                     }
                 }
-                
+
                 if (offsetspos == offsetssize)
                 {
                     offsetssize *= 2;
@@ -1869,7 +1870,7 @@ extern "C"
                         exit(1);
                     }
                 }
-                
+
                 offsets[offsetspos++] = qstringpos;
 #if COALESCED_QUERIES
                 if ((offsetspos % WARP_SIZE) == 0)
@@ -1878,7 +1879,7 @@ extern "C"
                 }
 #endif
                 inheader = true;
-                
+
                 // Try to walk out of header
                 for (i++; i < bytes_read; i++)
                 {
@@ -1895,7 +1896,7 @@ extern "C"
                         header.insert(header.end(), buf[i]);
                     }
                 }
-                
+
                 addChar(&qstring, &qstringsize, &qstringpos, 'q');
                 this_qrylen = 0;
             }
@@ -1907,7 +1908,7 @@ extern "C"
             }
             else if (isspace(b))
             {
-            
+
             }
             else if (resetAmbiguity)
             {
@@ -1922,13 +1923,13 @@ extern "C"
                 exit(1);
             }
         }
-        
+
         if (set_full)
             break;
-            
+
         total_read += bytes_read;
     }
-    
+
     if (qstringpos)
     {
         if (this_qrylen < min_match_length)
@@ -1948,21 +1949,21 @@ extern "C"
             int num_warp_queries = (offsetspos - 1) % WARP_SIZE;
             if (warp_max_qry_len < this_qrylen + 2)
             {
-            
-            
+
+
                 curr_warp_padding -= num_warp_queries * warp_max_qry_len;
                 curr_mem_usage -= num_warp_queries * warp_max_qry_len;
-                
+
                 warp_max_qry_len = this_qrylen  + 2;
                 if (warp_max_qry_len % 4)
                     warp_max_qry_len += 4 - (warp_max_qry_len % 4);
-                    
+
                 curr_warp_padding += num_warp_queries * warp_max_qry_len;
                 curr_mem_usage += num_warp_queries * warp_max_qry_len;
             }
             curr_mem_usage += bytesNeededOnGPU(warp_max_qry_len, min_match_length);
             curr_warp_padding += warp_max_qry_len;
-            
+
             if ((++num_warp_queries) % WARP_SIZE)
             {
                 curr_warp_padding += warp_max_qry_len * (WARP_SIZE - (num_warp_queries % WARP_SIZE));
@@ -1970,12 +1971,12 @@ extern "C"
 #else
             curr_mem_usage += bytesNeededOnGPU(this_qrylen, min_match_length);
 #endif
-            
+
         }
     }
-    
+
     *numQueries = offsetspos;
-    
+
     if (offsetspos == 0)
     {
         free(offsets);
@@ -1985,30 +1986,30 @@ extern "C"
         *queryTexture = NULL;
         *queryTextureSize = 0;
         *queryNames = NULL;
-        
+
         return;
     }
-    
-    
+
+
     *queryAddrs = offsets;
-    
+
     *queryTexture = qstring;
     *queryTextureSize = qstringpos;
     *queryNames = (char**)malloc(names.size() * sizeof(char*));
     *queryLengths = lengths;
-    
+
     for (unsigned int i = 0; i < *numQueries; ++i)
     {
         *(*queryNames + i) = names[i];
     }
-    
-    
+
+
 #if COALESCED_QUERIES
     EventTime_t reorder_timer;
     unsigned int total_reordered_qry_size = 0;
     vector<pair<int*, int> > reordered_query_chunks;
-    
-    
+
+
     for (unsigned int i = 0; i < *numQueries; i += WARP_SIZE)
     {
         int max_qry_len = 0;
@@ -2025,7 +2026,7 @@ extern "C"
         unsigned int block_size = WARP_SIZE * (max_qry_len + ((max_qry_len % 4) ? 4 - (max_qry_len % 4) : 0));
         int* reordered_query_chars = (int*)calloc(block_size / sizeof(int), sizeof(int));
         //fprintf (stderr, "reordering block for warp %d\n", i / WARP_SIZE);
-        
+
         for (int curr_char = 0; curr_char < max_qry_len; ++curr_char)
         {
             for (unsigned int curr_qry = 0; curr_qry < WARP_SIZE && (i + curr_qry) < *numQueries; ++curr_qry)
@@ -2047,10 +2048,10 @@ extern "C"
             }
         }
         total_reordered_qry_size += block_size;
-        
+
         reordered_query_chunks.push_back(make_pair<int*, int>(reordered_query_chars, block_size));
     }
-    
+
     free(*queryTexture);
     *queryTexture = (char*)malloc( total_reordered_qry_size );
     *queryTextureSize = total_reordered_qry_size;
@@ -2066,14 +2067,14 @@ extern "C"
         //*num_match_coords += reordered_query_chunks[i].second - WARP_SIZE * (min_match_length + 1);
         memcpy(*queryTexture + p, reordered_query_chunks[i].first, reordered_query_chunks[i].second);
         p += reordered_query_chunks[i].second;
-        
+
     }
     cerr <<  "Reordering complete. " << reorder_timer.str(true, 5) << endl;
     fprintf(stderr, " curr_warp_padding = %d, total_reordered = %d\n", curr_warp_padding, total_reordered_qry_size);
     //assert (curr_warp_padding == total_reordered_qry_size);
     curr_mem_usage = total_reordered_qry_size;
 #else
-    
+
     *num_match_coords = *queryTextureSize - *numQueries * (min_match_length + 1);
 #endif
 	assert (curr_mem_usage < memory_avail);
@@ -2093,7 +2094,7 @@ struct pathblock
 };
 
 
-#define __USE_BUFFERED_IO__ 
+#define __USE_BUFFERED_IO__
 
 static const size_t output_buf_limit = 32*1024;
 char output_buf[output_buf_limit];
@@ -2104,7 +2105,7 @@ size_t bytes_written = 0;
 int addToBuffer(char* string)
 {
 	 size_t buf_length = strlen(string);
-	 
+
 	 if (buf_length + bytes_written>= output_buf_limit)
 	 {
 		size_t chunk = (output_buf_limit - bytes_written - 1);
@@ -2147,26 +2148,26 @@ inline char *itoa(int i, char *a)
 		++c;
 		i /= 10;
 	}
-	
+
 	*c = "0123456789"[i % 10];
 	++c;
-	
+
 	while (c > b) {--c; *a = *c; ++a;}
 	return a;
 }
 
 int addMatchToBuffer(int left_in_ref, int qrypos, int matchlen)
 {
-	// The ridiculous second term here comes from the maximum number of 
-	// characters one might need to express a match to a reference that is 
+	// The ridiculous second term here comes from the maximum number of
+	// characters one might need to express a match to a reference that is
 	// no more than 10 billion bases long, using a MAX_QUERY_LENGTH of 8192,
 	// plus whitespace
 	if (bytes_written >= output_buf_limit - (12 + 4 + 4 + 4))
 	{
 		flushOutput();
 	}
-	
-	char* p_buf = output_buf + bytes_written;	
+
+	char* p_buf = output_buf + bytes_written;
 	p_buf = itoa(left_in_ref, p_buf);
 	*p_buf = '\t';
 	++p_buf;
@@ -2255,31 +2256,31 @@ char * getMerged(const ReferencePage * page, TextureAddress cur, int getChildren
 char buf[256];
 
 void printNodeAlignments(const ReferencePage* page,
-						 const char queryflankingbase, 
+						 const char queryflankingbase,
 						 const TextureAddress node,
-						 const int qrypos, 
+						 const int qrypos,
 						 int qrylen,
 						 const pathblock path[],
 						 int path_idx,
                          bool rc)
 {
-  char isLeaf = LEAFCHAR(node); 
+  char isLeaf = LEAFCHAR(node);
 
   if (path[path_idx].node_addr.data == node.data)
   {
 	 qrylen = path[path_idx].string_depth;
-	 path_idx--;  
+	 path_idx--;
   }
-  
+
   if (isLeaf)
   {
      if (isLeaf != queryflankingbase)
      {
        int leafid = MK3(LEAFID(node));
-       int left_in_ref = (leafid - 1) + page->begin; 
+       int left_in_ref = (leafid - 1) + page->begin;
        int right_in_ref = left_in_ref + qrylen;
 
-       if ((left_in_ref != page->begin || page->shadow_left == -1) && 
+       if ((left_in_ref != page->begin || page->shadow_left == -1) &&
            (right_in_ref != page->end || page->shadow_right == -1))
        {
 		 if (!(left_in_ref > page->begin && right_in_ref < page->shadow_left))
@@ -2296,23 +2297,23 @@ void printNodeAlignments(const ReferencePage* page,
     TextureAddress child;
 
     child = arrayToAddress(CHILDA(node));
-    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos, 
+    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos,
                                           qrylen, path, path_idx, rc); }
 
     child = arrayToAddress(CHILDC(node));
-    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos, 
+    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos,
                                           qrylen, path, path_idx, rc); }
 
     child = arrayToAddress(CHILDG(node));
-    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos, 
+    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos,
                                           qrylen, path, path_idx, rc); }
 
     child = arrayToAddress(CHILDT(node));
-    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos, 
+    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos,
                                           qrylen, path, path_idx, rc); }
 
     child = arrayToAddress(CHILDD(node));
-    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos, 
+    if (child.data) { printNodeAlignments(page, queryflankingbase, child, qrypos,
                                           qrylen, path, path_idx, rc); }
 
   }
@@ -2342,19 +2343,19 @@ char RC(char c)
 
 
 void printAlignmentsOld( ReferencePage* page,
-					 char* query, 
+					 char* query,
                      int qrylen,
-					 int nodeid, 
-					 int qrypos, 
-					 int edge_match, 
+					 int nodeid,
+					 int qrypos,
+					 int edge_match,
 					 int min_match,
                      bool rc,
                      bool forwardcoordinates)
 {
    TextureAddress node_addr = id2addr(nodeid);
    TextureAddress prev;
-   prev.data = 0; 
-  
+   prev.data = 0;
+
    int path_idx = 0;
    int string_depth = MK3(SDEPTH(node_addr)) - 1;
 
@@ -2374,19 +2375,19 @@ void printAlignmentsOld( ReferencePage* page,
    prev = node_addr;
 
    node_addr = arrayToAddress(PARENT(node_addr));
-   
+
    while ((node_addr.data) && string_depth >= min_match)
    {
 	  nodeid = addr2id(node_addr);
 	  path[path_idx].node_addr = node_addr;
 	  path[path_idx].string_depth = string_depth;
-	  path_idx++;	
-	  string_depth -= NODE_LENGTH(nodeid);	  
-	  
+	  path_idx++;
+	  string_depth -= NODE_LENGTH(nodeid);
+
 	  prev = node_addr;
 	  node_addr = arrayToAddress(PARENT(node_addr));
    }
-   
+
    char flankingbase = query[qrypos];
 
    if (rc)
@@ -2395,7 +2396,7 @@ void printAlignmentsOld( ReferencePage* page,
      if (forwardcoordinates) { qrypos = qrylen - 1 - qrypos; }
    }
 
-   printNodeAlignments(page, flankingbase, prev, qrypos + 1, 
+   printNodeAlignments(page, flankingbase, prev, qrypos + 1,
    				       MK3(SDEPTH(prev)), path, path_idx - 1, rc);
 }
 
@@ -2409,7 +2410,7 @@ inline char getQueryChar(char* query, int position)
 	return (c_word & mask) >> shift;
 #else
 	return *(query + position);
-#endif	
+#endif
 }
 
 // Stackless printing
@@ -2422,22 +2423,22 @@ void printAlignments(ReferencePage* page,
                      int edge_match,
                      int min_match,
                      bool rc,
-                     bool forwardcoordinates) 
+                     bool forwardcoordinates)
 {
   char queryflankingbase = getQueryChar(query, qrystartpos);
-	Alignment* alignments = h_alignments;  
-  if (rc) 
+	Alignment* alignments = h_alignments;
+  if (rc)
   {
     queryflankingbase = RC(query[strlen(query)-qrystartpos]);
     if (forwardcoordinates) { qrystartpos = qrylen - 1 - qrystartpos; }
   }
-    
+
   // Find the top node to start printing from
   TextureAddress cur = matchNodeAddr;
   TextureAddress printParent = cur;
 	unsigned int matchNodeId = addr2id(matchNodeAddr);
   int verbose = 0;
-    
+
   if (verbose)
   {
     cout << "query: " << query << endl;
@@ -2461,32 +2462,32 @@ void printAlignments(ReferencePage* page,
   {
     TextureAddress other;
     other.data = NODE_PRINTPARENT(matchNodeId).data;
-    
-    cout << "printParent ("          << PADDR(printParent) << "):" << MK3(SDEPTH(printParent)) 
-         << " != NODE_PRINTPARENT (" << PADDR(other)       << "):" << MK3(SDEPTH(other)) 
+
+    cout << "printParent ("          << PADDR(printParent) << "):" << MK3(SDEPTH(printParent))
+         << " != NODE_PRINTPARENT (" << PADDR(other)       << "):" << MK3(SDEPTH(other))
          << endl;
         exit(1);
   }
-    
+
   if (verbose)
   {
     cout << "printParent: " << PADDR(printParent) << endl;
   }
-    
+
   expectedvisit += NODE_NUMLEAVES(addr2id(printParent));
-    
+
   // traverse the tree starting at printParent
   TextureAddress badParent = cur;
   cur = printParent;
-    
+
   char curchild = 'A';
   bool forceToParent = false;
-    
+
   int printParentId = addr2id(printParent);
   int matchlen = MK3(SDEPTH(printParent))-1;
   int depthToGoldenPath = 0;
-    
-    
+
+
   // If the printparent is the matchnode, then we are already off the golden path
   if (printParentId == matchNodeId)
   {
@@ -2494,10 +2495,10 @@ void printAlignments(ReferencePage* page,
     {
       matchlen = MK3(SDEPTH(badParent)) - 1 + edge_match;
     }
-        
+
     depthToGoldenPath = 1;
   }
-    
+
   // keep going until I hit the printParent's parent
   while (cur.data != badParent.data)
   {
@@ -2508,20 +2509,20 @@ void printAlignments(ReferencePage* page,
     }
 
     char isLeaf = LEAFCHAR(cur);
-        
+
     if (isLeaf || forceToParent)
     {
       // See if I am left maximal and print
       if (isLeaf)
       {
         leavesvisited++;
-                
+
         if (isLeaf != queryflankingbase)
         {
           int leafid = MK3(LEAFID(cur));
           int left_in_ref = (leafid - 1) + page->begin;
           int right_in_ref = left_in_ref + matchlen;
-                    
+
           if ((left_in_ref != page->begin || page->shadow_left == -1) &&
               (right_in_ref != page->end || page->shadow_right == -1))
           {
@@ -2540,9 +2541,9 @@ void printAlignments(ReferencePage* page,
           }
         }
       }
-            
+
       forceToParent = false;
-            
+
       // now return to my parent and advance curchild
       TextureAddress myParent = arrayToAddress(PARENT(cur));
 
@@ -2554,11 +2555,11 @@ void printAlignments(ReferencePage* page,
       {
                 forceToParent = true;
       }
-            
+
       cur = myParent;
-            
+
       if (depthToGoldenPath) { depthToGoldenPath--; }
-            
+
       if (depthToGoldenPath == 0)
       {
         matchlen = MK3(SDEPTH(cur)) - 1;
@@ -2567,16 +2568,16 @@ void printAlignments(ReferencePage* page,
     else
     {
       // try to walk down the tree
-            
+
       char goldenChild = 0;
-            
+
       if (depthToGoldenPath == 0)
       {
         // we are currently on the golden path
         // one of the children is also on the golden path
         goldenChild = query[qrystartpos+matchlen+1];
       }
-            
+
       do
       {
         TextureAddress a;
@@ -2586,39 +2587,39 @@ void printAlignments(ReferencePage* page,
           if (a.data) { cur = a; break; }
           curchild = 'C';
         }
-                
+
         if (curchild == 'C')
         {
           a = arrayToAddress(CHILDC(cur));
           if (a.data) { cur = a; break; }
           curchild = 'G';
         }
-                
+
         if (curchild == 'G')
         {
           a = arrayToAddress(CHILDG(cur));
           if (a.data) { cur = a; break; }
           curchild = 'T';
         }
-                
+
         if (curchild == 'T')
         {
           a = arrayToAddress(CHILDT(cur));
           if (a.data) { cur = a; break; }
           curchild = '$';
         }
-                
+
         if (curchild == '$')
         {
           a = arrayToAddress(CHILDD(cur));
           if (a.data) { cur = a; break; }
         }
-                
+
         // checked all of the children, go back to parent
         forceToParent = true;
       }
       while (0);
-            
+
       if (!forceToParent)
       {
         if (depthToGoldenPath == 0)
@@ -2627,12 +2628,12 @@ void printAlignments(ReferencePage* page,
           {
             int cid = addr2id(cur);
             matchlen = MK3(SDEPTH(cur))-1;
-                        
+
             if (cid == matchNodeId)
             {
               // we overextended the golden path
               depthToGoldenPath = 1;
-                            
+
               if (edge_match > 0)
               {
                 matchlen = MK3(SDEPTH(cur)) - (NODE_LENGTH(cid) - edge_match) - 1;
@@ -2648,7 +2649,7 @@ void printAlignments(ReferencePage* page,
         {
           depthToGoldenPath++;
         }
-                
+
         curchild = 'A';
       }
     }
@@ -2667,9 +2668,9 @@ int lookupNumLeaves(ReferencePage * page, TextureAddress addr)
 #if 0
 struct ExactMatch
 {
-	ExactMatch(unsigned int lr, unsigned short qs, unsigned short ml) 
+	ExactMatch(unsigned int lr, unsigned short qs, unsigned short ml)
 		: left_in_ref(lr), qrystartpos(qs), matchlen(ml) {}
-		
+
 	unsigned int left_in_ref;
 	unsigned short qrystartpos;
 	unsigned short matchlen;
@@ -2683,7 +2684,7 @@ struct EMSortByRefPos
 	}
 };
 
-void align(const string & S, 
+void align(const string & S,
            const string & T,
            int match_score,
            int mismatch_score,
@@ -2702,13 +2703,13 @@ void mapQueryEndToEnd(MatchContext* ctx, vector<ExactMatch>& ems, unsigned int q
 	{
 		int a = 5;
 	}
-	
+
 	for (int i = 0; i < (int)(ems.size() - 1); ++i)
 	{
-		if (candidate_alignments.size() && 
+		if (candidate_alignments.size() &&
 			(ems[i].left_in_ref - length > ems[candidate_alignments.back()].left_in_ref))
 			continue;
-		
+
 		unsigned int j = i;
 		unsigned int left_ref = ems[j].left_in_ref;
 		unsigned int right_ref = left_ref + ems[j].matchlen;
@@ -2733,8 +2734,8 @@ void mapQueryEndToEnd(MatchContext* ctx, vector<ExactMatch>& ems, unsigned int q
 		char refstr[2 * (MAX_QUERY_LEN + MAX_MISMATCH)];
 		memset(refstr, 0, sizeof(refstr));
 		ExactMatch& m = ems[candidate_alignments[i]];
-		strncpy(refstr, 
-				ctx->ref->str + m.left_in_ref - m.qrystartpos - MAX_MISMATCH, 
+		strncpy(refstr,
+				ctx->ref->str + m.left_in_ref - m.qrystartpos - MAX_MISMATCH,
 				2 * (length + MAX_MISMATCH));
 		char* qrystr = ctx->queries->h_tex_array + ctx->queries->h_addrs_tex_array[qry];
 		align(string(refstr), string(qrystr), 10, -2, -2, -2);
@@ -2752,7 +2753,7 @@ void mapQueryEndToEnd(MatchContext* ctx, vector<ExactMatch>& ems, unsigned int q
 	// 		       ems[i].left_in_ref,
 	// 		       ems[i].qrystartpos + 1,
 	// 		       ems[i].matchlen);
-	// 
+	//
 	// 	}
 	// 	else
 	// 	{
@@ -2763,7 +2764,7 @@ void mapQueryEndToEnd(MatchContext* ctx, vector<ExactMatch>& ems, unsigned int q
 	// 	}
 	// 	addToBuffer(buf);
 	//}
-	
+
 	//flushOutput();
 }
 
@@ -2784,7 +2785,7 @@ void mapQueriesEndToEnd(MatchContext* ctx,
 			if (lastqry != -1)
 				mapQueryEndToEnd(ctx, ems, lastqry);
 			ems.clear();
-			
+
             lastqry = h_matches[m].queryid;
             // addToBuffer("> ");
             // addToBuffer(*(ctx->queries->h_names + lastqry));
@@ -2794,7 +2795,7 @@ void mapQueriesEndToEnd(MatchContext* ctx,
 				int a = 5;
 			}
         }
-        
+
         int base = h_matches[m].resultsoffset;
 
         for (int i = 0; i < h_matches[m].numLeaves; i++)
@@ -2807,7 +2808,7 @@ void mapQueriesEndToEnd(MatchContext* ctx,
             ems.push_back(ExactMatch(h_alignments[base+i].left_in_ref,
             					     h_matches[m].qrystartpos + 1,
 									 h_alignments[base+i].matchlen));
-			
+
         }
     }
 }

@@ -1,1 +1,1 @@
-./kmeans -o -i ../../data/kmeans/kdd_cup 
+./kmeans -o -i ../../data/kmeans/inpuGen/10000000_34f.txt -l 4
