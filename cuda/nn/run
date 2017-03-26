@@ -1,1 +1,1 @@
-./nn ../../data/nn/inputGen/list32768k.txt -r 5 -lat 30 -lng 90 -u
+./nn ../../data/nn/inputGen/list32768k.txt -r 5 -lat 30 -lng 90

@@ -5,11 +5,12 @@
  */
 
 #include <stdio.h>
-#include <sys/time.h>
+#include <time.h>
 #include <float.h>
 #include <vector>
 #include "cuda.h"
 #include <assert.h>
+#include <errno.h>
 
 #define min( a, b )     a > b ? b : a
 #define ceilDiv( a, b )   ( a + b - 1 ) / b
@@ -23,6 +24,14 @@
 #define LATITUDE_POS 28 // character position of the latitude value in each record
 #define OPEN 10000  // initial value of nearest neighbors
 
+#define TIMESTAMP(NAME) \
+struct timespec NAME; \
+if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+}
+
+#define ELAPSED(start, end) \
+(long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
 
 typedef struct latLong
 {
@@ -90,13 +99,13 @@ int main(int argc, char* argv[]) {
   // Scaling calculations - added by Sam Kauffman
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
-  cudaThreadSynchronize();
+  cudaDeviceSynchronize();
   unsigned long maxGridX = deviceProp.maxGridSize[0];
   unsigned long threadsPerBlock = min(deviceProp.maxThreadsPerBlock, DEFAULT_THREADS_PER_BLOCK);
   size_t totalDeviceMemory;
   size_t freeDeviceMemory;
   cudaMemGetInfo(&freeDeviceMemory, &totalDeviceMemory);
-  cudaThreadSynchronize();
+  cudaDeviceSynchronize();
   unsigned long usableDeviceMemory = freeDeviceMemory * 85 / 100; // 85% arbitrary throttle to compensate for known CUDA bug
   unsigned long maxThreads = usableDeviceMemory / 12; // 4 bytes in 3 vectors per thread
   if ( numRecords > maxThreads )
@@ -124,6 +133,10 @@ int main(int argc, char* argv[]) {
     print( gridX );
   }
 
+  cudaStream_t stream;
+  assert(cudaStreamCreate(&stream) == cudaSuccess);
+
+  TIMESTAMP(ts1);
   /**
    * Allocate memory on host and device
    */
@@ -134,30 +147,44 @@ int main(int argc, char* argv[]) {
   } else {
     assert(cudaMallocManaged(&distances, sizeof(float) * numRecords) == cudaSuccess);
   }
+
   /**
    * Transfer data from host to device
    */
   if (!unified) {
-    cudaMemcpy(d_locations, locations, sizeof(LatLong) * numRecords, cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_locations, locations, sizeof(LatLong) * numRecords, cudaMemcpyHostToDevice,
+        stream);
   }
+  cudaStreamSynchronize(stream);
+
+  TIMESTAMP(ts2);
 
   /**
    * Execute kernel
    */
   if (!unified) {
-    euclid<<<gridDim, threadsPerBlock>>>(d_locations, d_distances, numRecords, lat, lng);
+    euclid<<<gridDim, threadsPerBlock, 0, stream>>>(d_locations, d_distances, numRecords, lat, lng);
   } else {
-    euclid<<<gridDim, threadsPerBlock>>>(locations, distances, numRecords, lat, lng);
+    euclid<<<gridDim, threadsPerBlock, 0, stream>>>(locations, distances, numRecords, lat, lng);
   }
-  cudaThreadSynchronize();
+  cudaStreamSynchronize(stream);
 
-  //Copy data from device memory to host memory
+  TIMESTAMP(ts3);
+
+  /**
+   * Copy data from device memory to host memory
+   */
   if (!unified) {
-    cudaMemcpy( distances, d_distances, sizeof(float)*numRecords, cudaMemcpyDeviceToHost );
+    cudaMemcpyAsync(distances, d_distances, sizeof(float)*numRecords, cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
   }
+
+  TIMESTAMP(ts4);
 
   // find the resultsCount least distances
   findLowest(records, distances, numRecords, resultsCount);
+
+  TIMESTAMP(ts5);
 
   // print out results
   if (!quiet) {
@@ -175,6 +202,15 @@ int main(int argc, char* argv[]) {
     cudaFree(locations);
     cudaFree(distances);
   }
+
+  TIMESTAMP(ts6);
+
+  printf("Malloc + Copy in: %9lld ns\n", ELAPSED(ts1, ts2));
+  printf("Kernel execution: %9lld ns\n", ELAPSED(ts2, ts3));
+  printf("Copy out:         %9lld ns\n", ELAPSED(ts3, ts4));
+  printf("CPU Processing:   %9lld ns\n", ELAPSED(ts4, ts5));
+  printf("Free:             %9lld ns\n", ELAPSED(ts5, ts6));
+  printf("TOTAL:            %9lld ns\n", ELAPSED(ts1, ts6));
 
 }
 
