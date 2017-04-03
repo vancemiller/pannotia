@@ -1,281 +1,309 @@
 /*-----------------------------------------------------------
  ** gaussian.cu -- The program is to solve a linear system Ax = b
  **   by using Gaussian Elimination. The algorithm on page 101
- **   ("Foundations of Parallel Programming") is used.  
- **   The sequential version is gaussian.c.  This parallel 
- **   implementation converts three independent for() loops 
- **   into three Fans.  Use the data file ge_3.dat to verify 
- **   the correction of the output. 
+ **   ("Foundations of Parallel Programming") is used.
+ **   The sequential version is gaussian.c.  This parallel
+ **   implementation converts three independent for() loops
+ **   into three Fans.  Use the data file ge_3.dat to verify
+ **   the correction of the output.
  **
  ** Written by Andreas Kura, 02/15/95
  ** Modified by Chong-wei Xu, 04/20/95
  ** Modified by Chris Gregg for CUDA, 07/20/2009
+ ** Updated by Vance Miller for CUDA 8.0, 04/2017
  **-----------------------------------------------------------
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
+#include <argp.h>
+#include <assert.h>
+#include <cmath>
+#include <ctime>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
 #include "cuda.h"
-#include <string.h>
-#include <math.h>
+#include "helper_cuda.h"
 
 #ifdef RD_WG_SIZE_0_0
-        #define MAXBLOCKSIZE RD_WG_SIZE_0_0
+#define MAXBLOCKSIZE RD_WG_SIZE_0_0
 #elif defined(RD_WG_SIZE_0)
-        #define MAXBLOCKSIZE RD_WG_SIZE_0
+#define MAXBLOCKSIZE RD_WG_SIZE_0
 #elif defined(RD_WG_SIZE)
-        #define MAXBLOCKSIZE RD_WG_SIZE
+#define MAXBLOCKSIZE RD_WG_SIZE
 #else
-        #define MAXBLOCKSIZE 512
+#define MAXBLOCKSIZE 512
 #endif
 
-//2D defines. Go from specific to general                                                
+//2D defines. Go from specific to general
 #ifdef RD_WG_SIZE_1_0
-        #define BLOCK_SIZE_XY RD_WG_SIZE_1_0
+#define BLOCK_SIZE_XY RD_WG_SIZE_1_0
 #elif defined(RD_WG_SIZE_1)
-        #define BLOCK_SIZE_XY RD_WG_SIZE_1
+#define BLOCK_SIZE_XY RD_WG_SIZE_1
 #elif defined(RD_WG_SIZE)
-        #define BLOCK_SIZE_XY RD_WG_SIZE
+#define BLOCK_SIZE_XY RD_WG_SIZE
 #else
-        #define BLOCK_SIZE_XY 4
+#define BLOCK_SIZE_XY 4
 #endif
 
-int Size;
-float *a, *b, *finalVec;
-float *m;
-
-FILE *fp;
-
-void InitProblemOnce(char *filename);
-void InitPerRun();
-void ForwardSub();
-void BackSub();
-__global__ void Fan1(float *m, float *a, int Size, int t);
-__global__ void Fan2(float *m, float *a, float *b,int Size, int j1, int t);
-void InitMat(float *ary, int nrow, int ncol);
-void InitAry(float *ary, int ary_size);
-void PrintMat(float *ary, int nrow, int ncolumn);
-void PrintAry(float *ary, int ary_size);
-void PrintDeviceProperties();
-void checkCUDAError(const char *msg);
-
-unsigned int totalKernelTime = 0;
-
-// create both matrix and right hand side, Ke Wang 2013/08/12 11:51:06
-void
-create_matrix(float *m, int size){
-  int i,j;
-  float lamda = -0.01;
-  float coe[2*size-1];
-  float coe_i =0.0;
-
-  for (i=0; i < size; i++)
-    {
-      coe_i = 10*exp(lamda*i); 
-      j=size-1+i;     
-      coe[j]=coe_i;
-      j=size-1-i;     
-      coe[j]=coe_i;
-    }
-
-
-  for (i=0; i < size; i++) {
-      for (j=0; j < size; j++) {
-	m[i*size+j]=coe[size-1-i+j];
-      }
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
   }
 
+#define ELAPSED(start, end) \
+  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
 
+#define VPRINT(verbose, format, ...) \
+  if (verbose) {\
+    fprintf(stdout, format, #__VA_ARGS__);\
+  }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                                //
+//                                       Argument processing                                      //
+//                                                                                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static char doc[] = "Rodinia Gaussian Benchmark";
+static char args_doc[] = "The program is to solve a linear system Ax = b"
+"  by using Gaussian Elimination. The algorithm on page 101"
+"  (\"Foundations of Parallel Programming\") is used."
+"  The sequential version is gaussian.c.  This parallel"
+"  implementation converts three independent for() loops"
+"  into three Fans.  Use the data file ge_3.dat to verify"
+"the correction of the output.";
+
+static struct argp_option options[] = {
+  {"device", 'd', "DEVICE", 0, "CUDA Device ID"},
+  {"file", 'f', "FILEPATH", 0, "Path to file containing input data.\n"
+    "The first line of the file contains the dimension of the matrix, n."
+      "The second line of the file is a newline.\n"
+      "The next n lines contain n tab separated values for the matrix."
+      "The next line of the file is a newline.\n"
+      "The next line of the file is a 1xn vector with tab separated values.\n"
+      "The next line of the file is a newline. (optional)\n"
+      "The final line of the file is the pre-computed solution. (optional)\n"
+      "Example: matrix4.txt:\n4\n\n"
+      "-0.6	-0.5	0.7	0.3\n"
+      "-0.3	-0.9	0.3	0.7\n"
+      "-0.4	-0.5	-0.3	-0.8\n"
+      "0.0	-0.1	0.2	0.9\n\n"
+      "-0.85	-0.68	0.24	-0.53\n\n"
+      "0.7	0.0	-0.4	-0.5\n"},
+  {"size", 's', "SIZE", 0, "Generate a matrix with SIZE elements. (Ignores file input)"},
+  {"unified", 'u', 0, 0, "Use unified memory"},
+  {"verbose", 'v', 0, 0, "Verbose output"},
+  {0},
+};
+
+struct arguments {
+  uint8_t device;
+  char* file;
+  uint32_t size;
+  bool unified;
+  bool verbose;
+};
+
+static error_t parse_opt(int key, char* arg, struct argp_state* state) {
+  struct arguments* args = (struct arguments*) state->input;
+  switch (key) {
+    case 'd':
+      args->device = (int) strtol(arg, NULL, 0);
+      break;
+    case 'f':
+      args->file = arg;
+      break;
+    case 's':
+      args->size = (int) strtol(arg, NULL, 0);
+      break;
+    case 'u':
+      args->unified = true;
+      break;
+    case 'v':
+      args->verbose = true;
+      break;
+    default:
+      return ARGP_ERR_UNKNOWN;
+  }
+  return 0;
+}
+
+static struct argp argp = {options, parse_opt, args_doc, doc};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                                //
+//                                     Forward declarations                                       //
+//                                                                                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector_b,
+    float** matrix_m);
+long long ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, float* matrix_m);
+void BackSub(int size, float** result, float* matrix_a, float* vector_b, float* matrix_m);
+__global__ void Fan1(float *m, float *a, int size, int t);
+__global__ void Fan2(float *m, float *a, float *b,int size, int t);
+void InitMatrix(FILE* fp, float* matrix, int rows, int cols);
+void InitVector(FILE* fp, float* vector, int size);
+void PrintMatrix(float* matrix, int rows, int cols);
+void PrintVector(float* vector, int size);
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                                //
+//                                          Data Creation                                         //
+//                                                                                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// create both matrix and right hand side, Ke Wang 2013/08/12 11:51:06
+void create_matrix(float *m, int size) {
+  const float lamda = -0.01;
+  float coe_i = 0.0;
+  float coe[2 * size - 1];
+
+  for (int i = 0; i < size; i++) {
+    coe_i = 10 * exp(lamda * i);
+    int j = size - 1 + i;
+    coe[j] = coe_i;
+    j = size - 1 - i;
+    coe[j] = coe_i;
+  }
+
+  for (int i = 0; i < size; i++) {
+    for (int j = 0; j < size; j++) {
+      m[i * size + j] = coe[size - 1 - i + j];
+    }
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                                //
+//                                              Main                                              //
+//                                                                                                //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv) {
+  struct arguments args;
+  // Defaults
+  args.device = 0;
+  args.file = NULL;
+  args.size = 0;
+  args.unified = false;
+  args.verbose = false;
+  // Parse command line arguments
+  argp_parse(&argp, argc, argv, 0, 0, &args);
+  if (!args.size && !args.file) {
+    fprintf(stderr, "Provide -s or -f flag. Use -h for help\n");
+    exit(EXIT_FAILURE);
+  }
+
+  VPRINT(args.verbose, "WG size of kernel 1 = %d, WG size of kernel 2= %d X %d\n", MAXBLOCKSIZE,
+      BLOCK_SIZE_XY, BLOCK_SIZE_XY);
+
+  float* matrix_a;
+  float* vector_b;
+  float* matrix_m;
+
+  if (args.size) {
+    VPRINT(args.verbose, "Create matrix internally in parse, size = %d \n", args.size);
+    if (args.unified) {
+      checkCudaErrors(cudaMallocManaged(&matrix_a, args.size * args.size * sizeof(float),
+            cudaMemAttachHost));
+      checkCudaErrors(cudaMallocManaged(&vector_b, args.size * sizeof(float), cudaMemAttachHost));
+      checkCudaErrors(cudaMallocManaged(&matrix_m, args.size * args.size * sizeof(float),
+            cudaMemAttachHost));
+    } else {
+      matrix_a = (float*) malloc(args.size * args.size * sizeof(float));
+      vector_b = (float*) malloc(args.size * sizeof(float));
+      matrix_m = (float*) malloc(args.size * args.size * sizeof(float));
+    }
+    assert(matrix_a && vector_b && matrix_m);
+
+    // initialize data
+    create_matrix(matrix_a, args.size);
+    memset(vector_b, 1.0, args.size);
+    memset(matrix_m, 0.0, args.size * args.size);
+  } else {
+    // file input
+    VPRINT(args.verbose, "Read file from %s \n", args.file);
+    InitFromFile(args.file, args.unified, &matrix_a, &vector_b, &matrix_m);
+  }
+
+  //begin timing
+  TIMESTAMP(start);
+
+  // run kernels
+  long long kernel_time = ForwardSub(args.unified, args.unified, matrix_a, vector_b, matrix_m);
+
+  if (args.verbose) {
+    printf("Matrix m is: \n");
+    PrintMatrix(matrix_m, args.size, args.size);
+    printf("Matrix a is: \n");
+    PrintMatrix(matrix_a, args.size, args.size);
+    printf("Vector b is: \n");
+    PrintVector(vector_b, args.size);
+  }
+
+  float* result;
+  BackSub(args.size, &result, matrix_a, vector_b, matrix_m);
+
+  //end timing
+  TIMESTAMP(stop);
+  long long total_time = ELAPSED(start, stop);
+
+  if (args.verbose) {
+    printf("The final solution is: \n");
+    PrintVector(result, args.size);
+  }
+
+  printf("\nTime total (including memory transfers)\t%f sec\n", total_time * 1e-6);
+  printf("Time for CUDA kernels:\t%f sec\n", kernel_time * 1e-6);
+
+  if (args.unified) {
+    checkCudaErrors(cudaFree(matrix_m));
+    checkCudaErrors(cudaFree(matrix_a));
+    checkCudaErrors(cudaFree(vector_b));
+  } else {
+    free(matrix_m);
+    free(matrix_a);
+    free(vector_b);
+  }
+  free(result);
 }
 
 
-int main(int argc, char *argv[])
-{
-  printf("WG size of kernel 1 = %d, WG size of kernel 2= %d X %d\n", MAXBLOCKSIZE, BLOCK_SIZE_XY, BLOCK_SIZE_XY);
-    int verbose = 1;
-    int i, j;
-    char flag;
-    if (argc < 2) {
-        printf("Usage: gaussian -f filename / -s size [-q]\n\n");
-        printf("-q (quiet) suppresses printing the matrix and result values.\n");
-        printf("-f (filename) path of input file\n");
-        printf("-s (size) size of matrix. Create matrix and rhs in this program \n");
-        printf("The first line of the file contains the dimension of the matrix, n.");
-        printf("The second line of the file is a newline.\n");
-        printf("The next n lines contain n tab separated values for the matrix.");
-        printf("The next line of the file is a newline.\n");
-        printf("The next line of the file is a 1xn vector with tab separated values.\n");
-        printf("The next line of the file is a newline. (optional)\n");
-        printf("The final line of the file is the pre-computed solution. (optional)\n");
-        printf("Example: matrix4.txt:\n");
-        printf("4\n");
-        printf("\n");
-        printf("-0.6	-0.5	0.7	0.3\n");
-        printf("-0.3	-0.9	0.3	0.7\n");
-        printf("-0.4	-0.5	-0.3	-0.8\n");	
-        printf("0.0	-0.1	0.2	0.9\n");
-        printf("\n");
-        printf("-0.85	-0.68	0.24	-0.53\n");	
-        printf("\n");
-        printf("0.7	0.0	-0.4	-0.5\n");
-        exit(0);
-    }
-    
-    //PrintDeviceProperties();
-    //char filename[100];
-    //sprintf(filename,"matrices/matrix%d.txt",size);
-
-    for(i=1;i<argc;i++) {
-      if (argv[i][0]=='-') {// flag
-        flag = argv[i][1];
-          switch (flag) {
-            case 's': // platform
-              i++;
-              Size = atoi(argv[i]);
-	      printf("Create matrix internally in parse, size = %d \n", Size);
-
-	      a = (float *) malloc(Size * Size * sizeof(float));
-	      create_matrix(a, Size);
-
-	      b = (float *) malloc(Size * sizeof(float));
-	      for (j =0; j< Size; j++)
-	    	b[j]=1.0;
-
-	      m = (float *) malloc(Size * Size * sizeof(float));
-              break;
-            case 'f': // platform
-              i++;
-	      printf("Read file from %s \n", argv[i]);
-	      InitProblemOnce(argv[i]);
-              break;
-            case 'q': // quiet
-	      verbose = 0;
-              break;
-	  }
-      }
-    }
-
-    //InitProblemOnce(filename);
-    InitPerRun();
-    //begin timing
-    struct timeval time_start;
-    gettimeofday(&time_start, NULL);	
-    
-    // run kernels
-    ForwardSub();
-    
-    //end timing
-    struct timeval time_end;
-    gettimeofday(&time_end, NULL);
-    unsigned int time_total = (time_end.tv_sec * 1000000 + time_end.tv_usec) - (time_start.tv_sec * 1000000 + time_start.tv_usec);
-    
-    if (verbose) {
-        printf("Matrix m is: \n");
-        PrintMat(m, Size, Size);
-
-        printf("Matrix a is: \n");
-        PrintMat(a, Size, Size);
-
-        printf("Array b is: \n");
-        PrintAry(b, Size);
-    }
-    BackSub();
-    if (verbose) {
-        printf("The final solution is: \n");
-        PrintAry(finalVec,Size);
-    }
-    printf("\nTime total (including memory transfers)\t%f sec\n", time_total * 1e-6);
-    printf("Time for CUDA kernels:\t%f sec\n",totalKernelTime * 1e-6);
-    
-    /*printf("%d,%d\n",size,time_total);
-    fprintf(stderr,"%d,%d\n",size,time_total);*/
-    
-    free(m);
-    free(a);
-    free(b);
-}
 /*------------------------------------------------------
- ** PrintDeviceProperties
- **-----------------------------------------------------
- */
-void PrintDeviceProperties(){
-	cudaDeviceProp deviceProp;  
-	int nDevCount = 0;  
-	
-	cudaGetDeviceCount( &nDevCount );  
-	printf( "Total Device found: %d", nDevCount );  
-	for (int nDeviceIdx = 0; nDeviceIdx < nDevCount; ++nDeviceIdx )  
-	{  
-	    memset( &deviceProp, 0, sizeof(deviceProp));  
-	    if( cudaSuccess == cudaGetDeviceProperties(&deviceProp, nDeviceIdx))  
-	        {
-				printf( "\nDevice Name \t\t - %s ", deviceProp.name );  
-			    printf( "\n**************************************");  
-			    printf( "\nTotal Global Memory\t\t\t - %lu KB", deviceProp.totalGlobalMem/1024 );  
-			    printf( "\nShared memory available per block \t - %lu KB", deviceProp.sharedMemPerBlock/1024 );  
-			    printf( "\nNumber of registers per thread block \t - %d", deviceProp.regsPerBlock );  
-			    printf( "\nWarp size in threads \t\t\t - %d", deviceProp.warpSize );  
-			    printf( "\nMemory Pitch \t\t\t\t - %zu bytes", deviceProp.memPitch );  
-			    printf( "\nMaximum threads per block \t\t - %d", deviceProp.maxThreadsPerBlock );  
-			    printf( "\nMaximum Thread Dimension (block) \t - %d %d %d", deviceProp.maxThreadsDim[0], deviceProp.maxThreadsDim[1], deviceProp.maxThreadsDim[2] );  
-			    printf( "\nMaximum Thread Dimension (grid) \t - %d %d %d", deviceProp.maxGridSize[0], deviceProp.maxGridSize[1], deviceProp.maxGridSize[2] );  
-			    printf( "\nTotal constant memory \t\t\t - %zu bytes", deviceProp.totalConstMem );  
-			    printf( "\nCUDA ver \t\t\t\t - %d.%d", deviceProp.major, deviceProp.minor );  
-			    printf( "\nClock rate \t\t\t\t - %d KHz", deviceProp.clockRate );  
-			    printf( "\nTexture Alignment \t\t\t - %zu bytes", deviceProp.textureAlignment );  
-			    printf( "\nDevice Overlap \t\t\t\t - %s", deviceProp. deviceOverlap?"Allowed":"Not Allowed" );  
-			    printf( "\nNumber of Multi processors \t\t - %d\n\n", deviceProp.multiProcessorCount );  
-			}  
-	    else  
-	        printf( "\n%s", cudaGetErrorString(cudaGetLastError()));  
-	}  
-}
- 
- 
-/*------------------------------------------------------
- ** InitProblemOnce -- Initialize all of matrices and
+ ** InitFromFile -- Initialize all of matrices and
  ** vectors by opening a data file specified by the user.
- **
- ** We used dynamic array *a, *b, and *m to allocate
- ** the memory storages.
  **------------------------------------------------------
  */
-void InitProblemOnce(char *filename)
-{
-	//char *filename = argv[1];
-	
-	//printf("Enter the data file name: ");
-	//scanf("%s", filename);
-	//printf("The file name is: %s\n", filename);
-	
-	fp = fopen(filename, "r");
-	
-	fscanf(fp, "%d", &Size);	
-	 
-	a = (float *) malloc(Size * Size * sizeof(float));
-	 
-	InitMat(a, Size, Size);
-	//printf("The input matrix a is:\n");
-	//PrintMat(a, Size, Size);
-	b = (float *) malloc(Size * sizeof(float));
-	
-	InitAry(b, Size);
-	//printf("The input array b is:\n");
-	//PrintAry(b, Size);
-		
-	 m = (float *) malloc(Size * Size * sizeof(float));
-}
+void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector_b, float** matrix_m) {
+  FILE* fp = fopen(filename, "r");
+  if (!fp) {
+    fprintf(stderr, "Invalid input file: %s\n", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
 
-/*------------------------------------------------------
- ** InitPerRun() -- Initialize the contents of the
- ** multipier matrix **m
- **------------------------------------------------------
- */
-void InitPerRun() 
-{
-	int i;
-	for (i=0; i<Size*Size; i++)
-			*(m+i) = 0.0;
+  size_t size;
+  int ret = fscanf(fp, "%d", &size);
+  if (!ret) {
+    fprintf(stderr, "Improperly formatted input file: %s\n", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  if (unified) {
+    checkCudaErrors(cudaMallocManaged(matrix_a, size * size * sizeof(float),
+          cudaMemAttachHost));
+    checkCudaErrors(cudaMallocManaged(vector_b, size * sizeof(float), cudaMemAttachHost));
+    checkCudaErrors(cudaMallocManaged(matrix_m, size * size * sizeof(float),
+          cudaMemAttachHost));
+  } else {
+    *matrix_a = (float*) malloc(size * size * sizeof(float));
+    *vector_b = (float*) malloc(size * sizeof(float));
+    *matrix_m = (float*) malloc(size * size * sizeof(float));
+  }
+  assert(*matrix_a && *vector_b && *matrix_m);
+
+  InitMatrix(fp, *matrix_a, size, size);
+  InitVector(fp, *vector_b, size);
 }
 
 /*-------------------------------------------------------
@@ -286,36 +314,33 @@ void InitPerRun()
  ** of t which is defined on the ForwardSub().
  **-------------------------------------------------------
  */
-__global__ void Fan1(float *m_cuda, float *a_cuda, int Size, int t)
-{   
-	//if(threadIdx.x + blockIdx.x * blockDim.x >= Size-1-t) printf(".");
-	//printf("blockIDx.x:%d,threadIdx.x:%d,Size:%d,t:%d,Size-1-t:%d\n",blockIdx.x,threadIdx.x,Size,t,Size-1-t);
-
-	if(threadIdx.x + blockIdx.x * blockDim.x >= Size-1-t) return;
-	*(m_cuda+Size*(blockDim.x*blockIdx.x+threadIdx.x+t+1)+t) = *(a_cuda+Size*(blockDim.x*blockIdx.x+threadIdx.x+t+1)+t) / *(a_cuda+Size*t+t);
+__global__ void Fan1(float* d_matrix_m, float* d_matrix_a, int size, int t) {
+  int index = blockDim.x * blockIdx.x + threadIdx.x;
+  if (index >= size - 1 - t)
+    return;
+  d_matrix_m[size * (index + t + 1) + t] = d_matrix_a[size * (index + t + 1) + t] /
+      d_matrix_a[size * t + t];
+  // TODO shouldn't the kernel iterate over t instead of having the host launch each t-th kernel?
 }
 
 /*-------------------------------------------------------
  ** Fan2() -- Modify the matrix A into LUD
  **-------------------------------------------------------
- */ 
+ */
 
-__global__ void Fan2(float *m_cuda, float *a_cuda, float *b_cuda,int Size, int j1, int t)
+__global__ void Fan2(float *d_matrix_m, float *d_matrix_a, float *d_vector_b,int size, int t)
 {
-	if(threadIdx.x + blockIdx.x * blockDim.x >= Size-1-t) return;
-	if(threadIdx.y + blockIdx.y * blockDim.y >= Size-t) return;
-	
-	int xidx = blockIdx.x * blockDim.x + threadIdx.x;
-	int yidx = blockIdx.y * blockDim.y + threadIdx.y;
-	//printf("blockIdx.x:%d,threadIdx.x:%d,blockIdx.y:%d,threadIdx.y:%d,blockDim.x:%d,blockDim.y:%d\n",blockIdx.x,threadIdx.x,blockIdx.y,threadIdx.y,blockDim.x,blockDim.y);
-	
-	a_cuda[Size*(xidx+1+t)+(yidx+t)] -= m_cuda[Size*(xidx+1+t)+t] * a_cuda[Size*t+(yidx+t)];
-	//a_cuda[xidx+1+t][yidx+t] -= m_cuda[xidx+1+t][t] * a_cuda[t][yidx+t];
-	if(yidx == 0){
-		//printf("blockIdx.x:%d,threadIdx.x:%d,blockIdx.y:%d,threadIdx.y:%d,blockDim.x:%d,blockDim.y:%d\n",blockIdx.x,threadIdx.x,blockIdx.y,threadIdx.y,blockDim.x,blockDim.y);
-		//printf("xidx:%d,yidx:%d\n",xidx,yidx);
-		b_cuda[xidx+1+t] -= m_cuda[Size*(xidx+1+t)+(yidx+t)] * b_cuda[t];
-	}
+  int x = blockDim.x * blockIdx.x + threadIdx.x;
+  int y = blockDim.y * blockIdx.y + threadIdx.y;
+  if (x >= size - 1 - t || y >= size - t)
+    return;
+
+  d_matrix_a[size * (x + 1 + t) + (y + t)] -= d_matrix_m[size * (x + 1 + t) + t] *
+      d_matrix_a[size * t + (y + t)];
+  if (y == 0) {
+    d_vector_b[x + 1 + t] -= d_matrix_m[size * (x + 1 + t) + (y + t)] * d_vector_b[t];
+  }
+  // TODO shouldn't the kernel iterate over t instead of having the host launch each t-th kernel?
 }
 
 /*------------------------------------------------------
@@ -323,63 +348,62 @@ __global__ void Fan2(float *m_cuda, float *a_cuda, float *b_cuda,int Size, int j
  ** elimination.
  **------------------------------------------------------
  */
-void ForwardSub()
-{
-	int t;
-    float *m_cuda,*a_cuda,*b_cuda;
-	
-	// allocate memory on GPU
-	cudaMalloc((void **) &m_cuda, Size * Size * sizeof(float));
-	 
-	cudaMalloc((void **) &a_cuda, Size * Size * sizeof(float));
-	
-	cudaMalloc((void **) &b_cuda, Size * sizeof(float));	
+long long ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, float* matrix_m) {
+  cudaStream_t stream;
+  checkCudaErrors(cudaStreamCreate(&stream));
 
-	// copy memory to GPU
-	cudaMemcpy(m_cuda, m, Size * Size * sizeof(float),cudaMemcpyHostToDevice );
-	cudaMemcpy(a_cuda, a, Size * Size * sizeof(float),cudaMemcpyHostToDevice );
-	cudaMemcpy(b_cuda, b, Size * sizeof(float),cudaMemcpyHostToDevice );
-	
-	int block_size,grid_size;
-	
-	block_size = MAXBLOCKSIZE;
-	grid_size = (Size/block_size) + (!(Size%block_size)? 0:1);
-	//printf("1d grid size: %d\n",grid_size);
+  float* d_matrix_m;
+  float* d_matrix_a;
+  float* d_vector_b;
 
+  // allocate memory on GPU
+  if (unified) {
+    d_matrix_a = matrix_a;
+    d_vector_b = vector_b;
+    d_matrix_m = matrix_m;
+  } else {
+    cudaMalloc((void **) &d_matrix_m, size * size * sizeof(float));
+    cudaMalloc((void **) &d_matrix_a, size * size * sizeof(float));
+    cudaMalloc((void **) &d_vector_b, size * sizeof(float));
+    // copy memory to GPU
+    cudaMemcpy(d_matrix_m, matrix_m, size * size * sizeof(float),cudaMemcpyHostToDevice );
+    cudaMemcpy(d_matrix_a, matrix_a, size * size * sizeof(float),cudaMemcpyHostToDevice );
+    cudaMemcpy(d_vector_b, vector_b, size * sizeof(float),cudaMemcpyHostToDevice );
+  }
 
-	dim3 dimBlock(block_size);
-	dim3 dimGrid(grid_size);
-	//dim3 dimGrid( (N/dimBlock.x) + (!(N%dimBlock.x)?0:1) );
-	
-	int blockSize2d, gridSize2d;
-	blockSize2d = BLOCK_SIZE_XY;
-	gridSize2d = (Size/blockSize2d) + (!(Size%blockSize2d?0:1)); 
-	
-	dim3 dimBlockXY(blockSize2d,blockSize2d);
-	dim3 dimGridXY(gridSize2d,gridSize2d);
+  int block_size = MAXBLOCKSIZE;
+  int grid_size = (size + block_size - 1) / block_size; // round up
 
-    // begin timing kernels
-    struct timeval time_start;
-    gettimeofday(&time_start, NULL);
-	for (t=0; t<(Size-1); t++) {
-		Fan1<<<dimGrid,dimBlock>>>(m_cuda,a_cuda,Size,t);
-		cudaThreadSynchronize();
-		Fan2<<<dimGridXY,dimBlockXY>>>(m_cuda,a_cuda,b_cuda,Size,Size-t,t);
-		cudaThreadSynchronize();
-		checkCUDAError("Fan2");
-	}
-	// end timing kernels
-	struct timeval time_end;
-    gettimeofday(&time_end, NULL);
-    totalKernelTime = (time_end.tv_sec * 1000000 + time_end.tv_usec) - (time_start.tv_sec * 1000000 + time_start.tv_usec);
-	
-	// copy memory back to CPU
-	cudaMemcpy(m, m_cuda, Size * Size * sizeof(float),cudaMemcpyDeviceToHost );
-	cudaMemcpy(a, a_cuda, Size * Size * sizeof(float),cudaMemcpyDeviceToHost );
-	cudaMemcpy(b, b_cuda, Size * sizeof(float),cudaMemcpyDeviceToHost );
-	cudaFree(m_cuda);
-	cudaFree(a_cuda);
-	cudaFree(b_cuda);
+  dim3 dimBlock(block_size);
+  dim3 dimGrid(grid_size);
+
+  int blockSize2d = BLOCK_SIZE_XY;
+  int gridSize2d = (size + blockSize2d - 1) /blockSize2d; // round up
+
+  dim3 dimBlockXY(blockSize2d, blockSize2d);
+  dim3 dimGridXY(gridSize2d, gridSize2d);
+
+  // begin timing kernels
+  TIMESTAMP(start);
+  for (int i = 0; i < size - 1; i++) {
+    Fan1<<<dimGrid, dimBlock, 0, stream>>>(d_matrix_m, d_matrix_a, size, i);
+    checkCudaErrors(cudaStreamSynchronize(stream));
+    Fan2<<<dimGridXY, dimBlockXY>>>(d_matrix_m, d_matrix_a, d_vector_b, size, i);
+    checkCudaErrors(cudaStreamSynchronize(stream));
+  }
+  // end timing kernels
+  TIMESTAMP(stop);
+
+  if (!unified) {
+    // copy memory back to CPU
+    cudaMemcpy(matrix_m, d_matrix_m, size * size * sizeof(float),cudaMemcpyDeviceToHost );
+    cudaMemcpy(matrix_a, d_matrix_a, size * size * sizeof(float),cudaMemcpyDeviceToHost );
+    cudaMemcpy(vector_b, d_vector_b, size * sizeof(float),cudaMemcpyDeviceToHost );
+    cudaFree(d_matrix_m);
+    cudaFree(d_matrix_a);
+    cudaFree(d_vector_b);
+  }
+  return ELAPSED(start, stop);
 }
 
 /*------------------------------------------------------
@@ -387,84 +411,77 @@ void ForwardSub()
  **------------------------------------------------------
  */
 
-void BackSub()
-{
-	// create a new vector to hold the final answer
-	finalVec = (float *) malloc(Size * sizeof(float));
-	// solve "bottom up"
-	int i,j;
-	for(i=0;i<Size;i++){
-		finalVec[Size-i-1]=b[Size-i-1];
-		for(j=0;j<i;j++)
-		{
-			finalVec[Size-i-1]-=*(a+Size*(Size-i-1)+(Size-j-1)) * finalVec[Size-j-1];
-		}
-		finalVec[Size-i-1]=finalVec[Size-i-1]/ *(a+Size*(Size-i-1)+(Size-i-1));
-	}
-}
-
-void InitMat(float *ary, int nrow, int ncol)
-{
-	int i, j;
-	
-	for (i=0; i<nrow; i++) {
-		for (j=0; j<ncol; j++) {
-			fscanf(fp, "%f",  ary+Size*i+j);
-		}
-	}  
+void BackSub(int size, float** result, float* matrix_a, float* vector_b, float* matrix_m) {
+  // create a new vector to hold the final answer
+  *result = (float*) malloc(size * sizeof(float));
+  // solve "bottom up"
+  for(int i = 0; i < size; i++) {
+    (*result)[size - i - 1] = vector_b[size - i - 1];
+    for(int j = 0; j < i; j++) {
+      (*result)[size - i - 1] -= matrix_a[size * (size - i - 1) + (size - j - 1)] *
+          (*result)[size - j - 1];
+    }
+    (*result)[size - i - 1] = (*result)[size - i - 1] / matrix_a[size * (size - i - 1) +
+        (size - i - 1)];
+  }
 }
 
 /*------------------------------------------------------
- ** PrintMat() -- Print the contents of the matrix
+ ** InitMatrix() -- Initialize the matrix by reading
+ ** data from the file
  **------------------------------------------------------
  */
-void PrintMat(float *ary, int nrow, int ncol)
-{
-	int i, j;
-	
-	for (i=0; i<nrow; i++) {
-		for (j=0; j<ncol; j++) {
-			printf("%8.2f ", *(ary+Size*i+j));
-		}
-		printf("\n");
-	}
-	printf("\n");
-}
-
-/*------------------------------------------------------
- ** InitAry() -- Initialize the array (vector) by reading
- ** data from the data file
- **------------------------------------------------------
- */
-void InitAry(float *ary, int ary_size)
-{
-	int i;
-	
-	for (i=0; i<ary_size; i++) {
-		fscanf(fp, "%f",  &ary[i]);
-	}
-}  
-
-/*------------------------------------------------------
- ** PrintAry() -- Print the contents of the array (vector)
- **------------------------------------------------------
- */
-void PrintAry(float *ary, int ary_size)
-{
-	int i;
-	for (i=0; i<ary_size; i++) {
-		printf("%.2f ", ary[i]);
-	}
-	printf("\n\n");
-}
-void checkCUDAError(const char *msg)
-{
-    cudaError_t err = cudaGetLastError();
-    if( cudaSuccess != err) 
-    {
-        fprintf(stderr, "Cuda error: %s: %s.\n", msg, 
-                                  cudaGetErrorString( err) );
+void InitMatrix(FILE* fp, float* matrix, int rows, int cols) {
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      int result = fscanf(fp, "%f", matrix + rows * i + j);
+      if (!result) {
+        fprintf(stderr, "Improperly formatted input file. Matrix ended early. %s\n",
+            strerror(errno));
         exit(EXIT_FAILURE);
-    }                         
+      }
+    }
+  }
+}
+
+/*------------------------------------------------------
+ ** PrintMatrix() -- Print the contents of the matrix
+ **------------------------------------------------------
+ */
+void PrintMatrix(float* matrix, int rows, int cols) {
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      printf("%8.2f ", *(matrix + rows * i + j));
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
+/*------------------------------------------------------
+ ** InitVector() -- Initialize the vector by reading
+ ** data from the file
+ **------------------------------------------------------
+ */
+void InitVector(FILE* fp, float* vector, int size) {
+  for (int i = 0; i < size; i++) {
+    int result = fscanf(fp, "%f",  &vector[i]);
+    if (!result) {
+      fprintf(stderr, "Improperly formatted input file. Vector ended early. %s\n",
+          strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+  }
+}
+
+/*------------------------------------------------------
+ ** PrintVector() -- Print the contents of the vector
+ **------------------------------------------------------
+ */
+void PrintVector(float* vector, int size) {
+  for (int i = 0; i < size; i++) {
+    printf("%.2f ", vector[i]);
+  }
+  printf("\n\n");
 }
 
