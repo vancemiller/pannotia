@@ -56,7 +56,7 @@
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
-    fprintf(stdout, format, #__VA_ARGS__);\
+    fprintf(stdout, format, ## __VA_ARGS__);\
   }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -202,8 +202,11 @@ int main(int argc, char** argv) {
   float* vector_b;
   float* matrix_m;
 
+  //begin timing
+  TIMESTAMP(start);
+
   if (args.size) {
-    VPRINT(args.verbose, "Create matrix internally in parse, size = %d \n", args.size);
+    VPRINT(args.verbose, "Create matrix internally in parse, size = %d \n", (int) args.size);
     if (args.unified) {
       checkCudaErrors(cudaMallocManaged(&matrix_a, args.size * args.size * sizeof(float),
             cudaMemAttachHost));
@@ -227,8 +230,6 @@ int main(int argc, char** argv) {
     InitFromFile(args.file, args.unified, &matrix_a, &vector_b, &matrix_m);
   }
 
-  //begin timing
-  TIMESTAMP(start);
 
   // run kernels
   long long kernel_time = ForwardSub(args.unified, args.unified, matrix_a, vector_b, matrix_m);
@@ -254,8 +255,8 @@ int main(int argc, char** argv) {
     PrintVector(result, args.size);
   }
 
-  printf("\nTime total (including memory transfers)\t%f sec\n", total_time * 1e-6);
-  printf("Time for CUDA kernels:\t%f sec\n", kernel_time * 1e-6);
+  printf("\nTime total (including memory transfers)\t%f ms\n", (double) total_time * 1e-6);
+  printf("Time for CUDA kernels:\t%f ms\n", (double) kernel_time * 1e-6);
 
   if (args.unified) {
     checkCudaErrors(cudaFree(matrix_m));
@@ -283,7 +284,7 @@ void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector
   }
 
   size_t size;
-  int ret = fscanf(fp, "%d", &size);
+  int ret = fscanf(fp, "%lu", &size);
   if (!ret) {
     fprintf(stderr, "Improperly formatted input file: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
