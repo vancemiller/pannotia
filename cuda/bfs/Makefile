@@ -1,24 +1,15 @@
-include ../../common/make.config
+NVCC=nvcc
+NVCCFLAGS=-std=c++11 -Wno-deprecated-gpu-targets -g
+INC=./inc
 
-CC := $(CUDA_DIR)/bin/nvcc
+SRCS = $(wildcard *.cu)
+TARGETS = $(patsubst %.cu,%,$(SRCS))
 
-INCLUDE := $(CUDA_DIR)/include
+all: $(TARGETS)
 
-SRC = bfs.cu
+%: %.cu
+	$(NVCC) $(NVCCFLAGS) -o $@ $< -I$(INC)
 
-EXE = bfs
+clean:
+	rm -f $(TARGETS)
 
-release: $(SRC)
-	$(CC) $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-enum: $(SRC)
-	$(CC) -deviceemu $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-debug: $(SRC)
-	$(CC) -g $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-debugenum: $(SRC)
-	$(CC) -g -deviceemu $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-clean: $(SRC)
-	rm -f $(EXE) $(EXE).linkinfo result.txt
