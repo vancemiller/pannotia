@@ -1,13 +1,10 @@
 #ifndef _PARAMS_H_
 #define _PARAMS_H_
 
-typedef unsigned int uint;
-typedef unsigned char uint8;
-
-#define BENCH 0 
+#define BENCH 0
 /* 0 - MEASURE TIME, NO TESTING
 ** 1 - TEST
-** 2 - TEST & VERBOSE 
+** 2 - TEST & VERBOSE
 */
 #define TESTING
 

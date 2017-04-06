@@ -3,9 +3,9 @@ CC = g++
 
 CUDA_INCLUDEPATH=/usr/local/cuda/include
 
-NVCC_OPTS=-O3 -arch=sm_35 -Xcompiler -m64 -g -G
+NVCC_OPTS=-O3 -arch=sm_35 -Xcompiler -m64 -g -G -std=c++11
 
-GCC_OPTS=-O3 -Wall -Wextra -m64
+GCC_OPTS=-O3 -Wall -Wextra -m64 -std=c++11
 
 OBJ = main_test_cu.o stats_logger.o vlc_kernel_sm64huff.o scan.o pack_kernels.o cpuencode.o
 SRC = main_test_cu.cu
@@ -34,7 +34,7 @@ scan.o: scan.cu
 pack_kernels.o: pack_kernels.cu
 	$(NVCC) -c pack_kernels.cu $(NVCC_OPTS)
 
-main_test_cu.o: main_test_cu.cu cutil.h
+main_test_cu.o: main_test_cu.cu
 	$(NVCC) $(TESTING) -c main_test_cu.cu $(NVCC_OPTS) -I $(CUDA_INCLUDEPATH)
 
 .o:.cpp
