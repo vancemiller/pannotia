@@ -1,24 +1,15 @@
-include ../../common/make.config
+NVCC=nvcc
+NVCCFLAGS=-std=c++11 -Wno-deprecated-gpu-targets
+INC=./inc
 
-CC := $(CUDA_DIR)/bin/nvcc
+SRCS = $(wildcard *.cu)
+TARGETS = $(patsubst %.cu,%,$(SRCS))
 
-INCLUDE := $(CUDA_DIR)/include
+all: $(TARGETS)
 
-SRC = hotspot.cu
+%: %.cu
+	$(NVCC) $(NVCCFLAGS) -o $@ $< -I$(INC)
 
-EXE = hotspot
+clean:
+	rm -f $(TARGETS)
 
-release: $(SRC)
-	$(CC) $(KERNEL_DIM) $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-enum: $(SRC)
-	$(CC) $(KERNEL_DIM) -deviceemu $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-debug: $(SRC)
-	$(CC) $(KERNEL_DIM) -g $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-debugenum: $(SRC)
-	$(CC) $(KERNEL_DIM) -g -deviceemu $(SRC) -o $(EXE) -I$(INCLUDE) -L$(CUDA_LIB_DIR) 
-
-clean: $(SRC)
-	rm -f $(EXE) $(EXE).linkinfo result.txt
