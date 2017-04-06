@@ -1,7 +1,36 @@
-all: lud_cuda 
+CC = gcc
+NVCC = nvcc
 
-lud_cuda:
-	cd cuda; make
+DEFS += \
+		-DGPU_TIMER \
+		$(SPACE)
+
+NVCCFLAGS += -O3 -g \
+			 -use_fast_math \
+			 -lm \
+			 $(SPACE)
+
+# Add source files here
+EXECUTABLE  := lud_cuda
+# Cuda source files (compiled with cudacc)
+CUFILES     := lud_kernel.cu
+# C/C++ source files (compiled with gcc / c++)
+CCFILES     := lud.c lud_cuda.c
+
+OBJS = lud.o lud_kernel.o
+
+.PHONY: all clean
+all : $(EXECUTABLE)
+
+.c.o :
+	$(NVCC) $(KERNEL_DIM) $(NVCCFLAGS) $(DEFS) -o $@ -c $<
+
+%.o:	%.cu
+	$(NVCC) $(KERNEL_DIM) $(NVCCFLAGS) $(DEFS) -o $@ -c $<
+
+
+$(EXECUTABLE) : $(OBJS)
+	$(NVCC) $(NVCCFLAGS) -o $@  $?
 
 clean:
-	cd cuda; make clean
+	rm -f $(EXECUTABLE) $(OBJS) *.linkinfo
