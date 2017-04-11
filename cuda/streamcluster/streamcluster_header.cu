@@ -1,15 +1,15 @@
 /************************************************
 	streamcluster_cuda_header.cu
 	: header file to streamcluster
-	
+
 	- original code from PARSEC Benchmark Suite
 	- parallelization with CUDA API has been applied by
-	
+
 	Sang-Ha (a.k.a Shawn) Lee - sl4ge@virginia.edu
 	University of Virginia
 	Department of Electrical and Computer Engineering
 	Department of Computer Science
-	
+
 ***********************************************/
 
 #ifndef STREAMCLUSTER_CUDA_HEADER_CU
@@ -58,6 +58,7 @@ struct pkmedian_arg_t
   long* kfinal;
   int pid;
   pthread_barrier_t* barrier;
+  bool unified;
 };
 
 class PStream {
@@ -92,7 +93,7 @@ public:
   int feof() {
     return n <= 0;
   }
-  ~SimStream() { 
+  ~SimStream() {
   }
 private:
   long n;
@@ -108,7 +109,7 @@ public:
     }
   }
   size_t read( float* dest, int dim, int num ) {
-    return std::fread(dest, sizeof(float)*dim, num, fp); 
+    return std::fread(dest, sizeof(float)*dim, num, fp);
   }
   int ferror() {
     return std::ferror(fp);
@@ -134,19 +135,20 @@ float waste(float);
 float dist(Point, Point, int);
 float pspeedy(Points*, float, long, int, pthread_barrier_t*);
 float pgain_old(long, Points*, float, long int*, int, pthread_barrier_t*);
-float pFL(Points*, int*, int, float, long*, float, long, float, int, pthread_barrier_t*);
+float pFL(Points*, int*, int, float, long*, float, long, float, int, pthread_barrier_t*, bool);
 int selectfeasible_fast(Points*, int**, int, int, pthread_barrier_t*);
-float pkmedian(Points*, long, long, long*, int, pthread_barrier_t*);
+float pkmedian(Points*, long, long, long*, int, pthread_barrier_t*, bool);
 int contcenters(Points*);
 void copycenters(Points*, Points*, long*, long);
 void* localSearchSub(void*);
-void localSearch(Points*, long, long, long*);
+void localSearch(Points*, long, long, long*, bool);
 void outcenterIDs(Points*, long*, char*);
 void streamCluster(PStream*, long, long, int, long, long, char*);
-float pgain(long, Points*, float, long int*, int, bool*, int*, bool*, bool, double*, double*, double*, double*, double*, double*);
+float pgain(long, Points*, float, long int*, int, bool*, int*, bool*, bool, long long*, long long*,
+    long long*, long long*, long long*, long long*, bool unified);
 void allocDevMem(int, int, int);
 void allocHostMem(int, int, int);
-void freeDevMem();
-void freeHostMem();
+void freeDevMem(bool);
+void freeHostMem(bool);
 
 #endif
