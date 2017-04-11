@@ -27,10 +27,8 @@
 #include <climits>
 
 // These names may vary by implementation
-//#define LINEAR_CONGRUENTIAL_ENGINE linear_congruential_engine
-#define LINEAR_CONGRUENTIAL_ENGINE linear_congruential
-//#define UNIFORM_INT_DISTRIBUTION uniform_int_distribution
-#define UNIFORM_INT_DISTRIBUTION uniform_int
+#define LINEAR_CONGRUENTIAL_ENGINE std::linear_congruential_engine
+#define UNIFORM_INT_DISTRIBUTION std::uniform_int_distribution
 
 using namespace std;
 
