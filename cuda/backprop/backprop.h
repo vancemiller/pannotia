@@ -5,7 +5,7 @@
 
 #define GPU
 #define THREADS 256
-#define WIDTH 16  // shared memory width  
+#define WIDTH 16  // shared memory width
 #define HEIGHT 16 // shared memory height
 
 #define ETA 0.3       //eta value
@@ -27,18 +27,16 @@ typedef struct {
 
   float *target;               /* storage for target vector */
 
-  float **input_weights;       /* weights from input to hidden layer */
-  float **hidden_weights;      /* weights from hidden to output layer */
+  float *input_weights;       /* weights from input to hidden layer */
+  float *hidden_weights;      /* weights from hidden to output layer */
 
                                 /*** The next two are for momentum ***/
-  float **input_prev_weights;  /* previous change on input to hidden wgt */
-  float **hidden_prev_weights; /* previous change on hidden to output wgt */
+  float *input_prev_weights;  /* previous change on input to hidden wgt */
+  float *hidden_prev_weights; /* previous change on hidden to output wgt */
 } BPNN;
 
 
 /*** User-level functions ***/
-
-void bpnn_initialize();
 
 BPNN *bpnn_create();
 void bpnn_free();
@@ -48,6 +46,5 @@ void bpnn_feedforward();
 
 void bpnn_save();
 BPNN *bpnn_read();
-
 
 #endif
