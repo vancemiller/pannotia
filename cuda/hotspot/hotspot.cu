@@ -60,7 +60,7 @@ float amb_temp = 80.0;
 //                                                                                                //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static char doc[] = "Rodinia LUD Benchmark";
+static char doc[] = "Rodinia hotspot Benchmark";
 static char args_doc[] = "";
 
 static struct argp_option options[] = {
