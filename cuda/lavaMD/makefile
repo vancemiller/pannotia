@@ -18,7 +18,7 @@ OMP_FLAG = -fopenmp
 
 CUD_C = $(CUDA_DIR)/bin/nvcc
 # OMP_FLAG = 	-Xcompiler paste_one_here
-CUDA_FLAG =""
+CUDA_FLAG = -G -g
 
 # link objects (binaries) together
 a.out:		main.o \
@@ -26,7 +26,7 @@ a.out:		main.o \
 			./util/num/num.o \
 			./util/timer/timer.o \
 			./util/device/device.o
-	$(C_C)	$(KERNEL_DIM) main.o \
+	$(CUD_C)	$(KERNEL_DIM) main.o \
 			./kernel/kernel_gpu_cuda_wrapper.o \
 			./util/num/num.o \
 			./util/timer/timer.o \
@@ -39,7 +39,7 @@ a.out:		main.o \
 
 # compile function files into objects (binaries)
 main.o:		main.h \
-			main.c \
+			main.cu \
 			./kernel/kernel_gpu_cuda_wrapper.h \
 			./kernel/kernel_gpu_cuda_wrapper.cu \
 			./util/num/num.h \
@@ -48,14 +48,14 @@ main.o:		main.h \
 			./util/timer/timer.c \
 			./util/device/device.h \
 			./util/device/device.cu
-	$(C_C)	$(KERNEL_DIM) $(OUTPUT) main.c \
+	$(CUD_C)	$(KERNEL_DIM) $(OUTPUT) main.cu \
 			-c \
 			-o main.o \
 			-O3
 
 ./kernel/kernel_gpu_cuda_wrapper.o:	./kernel/kernel_gpu_cuda_wrapper.h \
 									./kernel/kernel_gpu_cuda_wrapper.cu
-	$(CUD_C) $(KERNEL_DIM)						./kernel/kernel_gpu_cuda_wrapper.cu \
+	$(CUD_C) $(KERNEL_DIM) ./kernel/kernel_gpu_cuda_wrapper.cu \
 									-c \
 									-o ./kernel/kernel_gpu_cuda_wrapper.o \
 									-O3 \
