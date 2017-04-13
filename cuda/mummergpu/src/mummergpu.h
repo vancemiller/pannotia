@@ -5,7 +5,7 @@
 extern "C" {
 struct QuerySet {
     int qfile;
-    
+
     char* h_tex_array;
     char* d_tex_array;
     int* d_addrs_tex_array;
@@ -14,10 +14,10 @@ struct QuerySet {
     int* d_lengths_array;
 
     char** h_names;
-    
+
     unsigned int count;
     size_t texlen;
-    
+
     // total device memory occupied by this query set
     size_t bytes_on_board;
 };
@@ -35,25 +35,25 @@ struct Reference {
     char* str;
     size_t len;
 	float t_load_from_disk;
-    
+
     unsigned int pitch;
     void* d_ref_array;  //cudaArray*
     char* h_ref_array;
-    
+
     /* Suffix tree for reference */
     void* d_node_tex_array;  //really a cudaArray* (or PixelOfNode* if NODETEX == 1)
     void* h_node_tex_array;  //really a PixelOfNode*
-    
+
     void* d_children_tex_array; //cudaArray* (or PixelOfChildren* if CHILDTEX == 1)
     void* h_children_tex_array; //PixelOfChildren*
 
     void* d_parent_tex_array; //cudaArray*
     void* h_parent_tex_array; //PixelOfParent*
-    
+
 #if TREE_ACCESS_HISTOGRAM
 	int* d_node_hist;
 	int* h_node_hist;
-	
+
 	int* d_child_hist;
 	int* h_child_hist;
 #endif
@@ -61,13 +61,13 @@ struct Reference {
     unsigned int tex_node_height;
     unsigned int tex_children_height;
     unsigned int tex_width;
-    
+
     // total device memory occupied by this query set
     size_t bytes_on_board;
-    
+
     AuxiliaryNodeData* aux_data;
     int num_nodes;
-    
+
 };
 
 
@@ -77,7 +77,7 @@ struct Reference {
 
 
 struct MatchCoord{
-	union 
+	union
 	{
 		int2 data;
    		struct
@@ -93,9 +93,9 @@ struct MatchResults{
     // of some substring of one of the queries
     MatchCoord* d_match_coords;
     MatchCoord* h_match_coords;
-    
+
     unsigned int numCoords;
-    
+
 // The kernel only needs this array if the queries are coalesced
 // We build it on the host side to make printing simpler.
 #if COALESCED_QUERIES
@@ -139,21 +139,21 @@ struct Statistics {
 struct MatchContext {
     char* full_ref;
     size_t full_ref_len;
-    
+
     Reference* ref;
     QuerySet* queries;
     MatchResults results;
-    
+
     bool on_cpu;
-    
+
     int min_match_length;
-    
+
     bool reverse;
     bool forwardreverse;
     bool forwardcoordinates;
     bool show_query_length;
     bool maxmatch;
-    
+
     char* stats_file;
 	char* dotfilename;
     char* texfilename;
@@ -193,11 +193,11 @@ int createMatchContext(Reference* ref,
                        char* texFilename,
                        MatchContext* ctx);
 
-                       
+
 int destroyMatchContext(MatchContext* ctx);
 
 
-int matchQueries(MatchContext* ctx);
+int matchQueries(MatchContext* ctx, bool unified);
 
 void printStringForError(int err);
 
