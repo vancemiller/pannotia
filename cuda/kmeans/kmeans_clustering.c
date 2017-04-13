@@ -71,6 +71,16 @@
 
 #define RANDOM_MAX 2147483647
 
+extern int // delta -- had problems when return value was of float type
+kmeansCuda(float  **feature,        /* in: [npoints][nfeatures] */
+    int      nfeatures,       /* number of attributes for each point */
+    int      npoints,       /* number of data points */
+    int      nclusters,       /* number of clusters */
+    int     *membership,        /* which cluster the point belongs to */
+    float  **clusters,        /* coordinates of cluster centers */
+    int     *new_centers_len,   /* number of elements in each cluster */
+    float  **new_centers,        /* sum of elements in each cluster */
+    int unified);
 extern double wtime(void);
 
 /*----< kmeans_clustering() >---------------------------------------------*/
@@ -79,7 +89,8 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
                           int     npoints,
                           int     nclusters,
                           float   threshold,
-                          int    *membership) /* out: [npoints] */
+                          int    *membership,
+                          int unified) /* out: [npoints] */
 {
   int      i, j, n = 0;       /* counters */
   int    loop = 0, temp;
@@ -150,7 +161,8 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
                                membership,    /* which cluster the point belongs to */
                                clusters,    /* out: [nclusters][nfeatures] */
                                new_centers_len, /* out: number of points in each cluster */
-                               new_centers    /* sum of points in each cluster */
+                               new_centers,    /* sum of points in each cluster */
+                               unified
                               );
 
     /* replace old cluster centers with new_centers */
@@ -171,3 +183,4 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
   free(new_centers_len);
   return clusters;
 }
+
