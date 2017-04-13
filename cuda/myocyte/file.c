@@ -16,9 +16,9 @@
 //========================================================================================================================
 
 void write(	char* filename,
-					fp* input, 
-					int data_rows, 
-					int data_cols, 
+					float* input,
+					int data_rows,
+					int data_cols,
 					int major,
 					int data_range){
 
@@ -47,7 +47,7 @@ void write(	char* filename,
 	if(major==0){
 		for(i=0; i<data_rows; i++){
 			for(j=0; j<data_cols; j++){
-				fprintf(fid, "%f ", (fp)input[i*data_cols+j]);
+				fprintf(fid, "%f ", (float)input[i*data_cols+j]);
 			}
 			fprintf(fid, "\n");
 		}
@@ -56,7 +56,7 @@ void write(	char* filename,
 	else{
 		for(i=0; i<data_rows; i++){
 			for(j=0; j<data_cols; j++){
-				fprintf(fid, "%f ", (fp)input[j*data_rows+i]);
+				fprintf(fid, "%f ", (float)input[j*data_rows+i]);
 			}
 			fprintf(fid, "\n");
 		}
@@ -75,8 +75,8 @@ void write(	char* filename,
 //========================================================================================================================
 
 void read(	char* filename,
-					fp* input,
-					int data_rows, 
+					float* input,
+					int data_rows,
 					int data_cols,
 					int major){
 
@@ -86,7 +86,7 @@ void read(	char* filename,
 
 	FILE* fid;
 	int i, j;
-	fp temp;
+	float temp;
 
 	//=====================================================================
 	//	OPEN FILE FOR READING
@@ -106,7 +106,7 @@ void read(	char* filename,
 		for(i=0; i<data_rows; i++){
 			for(j=0; j<data_cols; j++){
 				fscanf(fid, "%f", &temp);
-				input[i*data_cols+j] = (fp)temp;
+				input[i*data_cols+j] = (float)temp;
 			}
 		}
 	}
@@ -114,7 +114,7 @@ void read(	char* filename,
 		for(i=0; i<data_rows; i++){
 			for(j=0; j<data_cols; j++){
 				fscanf(fid, "%f", &temp);
-				input[j*data_rows+i] = (fp)temp;
+				input[j*data_rows+i] = (float)temp;
 			}
 		}
 	}

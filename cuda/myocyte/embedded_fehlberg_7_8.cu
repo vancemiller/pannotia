@@ -50,8 +50,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
-//  static fp Runge_Kutta(fp (*f)(fp,fp), fp *y,          //
-//                                                       fp x0, fp h) //
+//  static float Runge_Kutta(float (*f)(float,float), float *y,          //
+//                                                       float x0, float h) //
 //                                                                            //
 //  Description:                                                              //
 //     This routine uses Fehlberg's embedded 7th and 8th order methods to     //
@@ -61,13 +61,13 @@
 //     per step size ).                                                       //
 //                                                                            //
 //  Arguments:                                                                //
-//     fp *f  Pointer to the function which returns the slope at (x,y) of //
+//     float *f  Pointer to the function which returns the slope at (x,y) of //
 //                integral curve of the differential equation y' = f(x,y)     //
 //                which passes through the point (x0,y[0]).                   //
-//     fp y[] On input y[0] is the initial value of y at x, on output     //
+//     float y[] On input y[0] is the initial value of y at x, on output     //
 //                y[1] is the solution at x + h.                              //
-//     fp x   Initial value of x.                                         //
-//     fp h   Step size                                                   //
+//     float x   Initial value of x.                                         //
+//     float h   Step size                                                   //
 //                                                                            //
 //  Return Values:                                                            //
 //     This routine returns the err / h.  The solution of y(x) at x + h is    //
@@ -80,100 +80,100 @@
 //		PARTICULAR SOLVER FUNCTION
 //===============================================================================================================================================================================================================
 //===============================================================================================================================================================================================================
+#include "helper_cuda.h"
+void embedded_fehlberg_7_8(	float timeinst,
+													float h,
+													float* initvalu,
+													float* finavalu,
+													float* error,
+													float* parameter,
+													float* com,
 
-void embedded_fehlberg_7_8(	fp timeinst,
-													fp h,
-													fp* initvalu,
-													fp* finavalu,
-													fp* error,
-													fp* parameter,
-													fp* com,
-
-													fp* d_initvalu,
-													fp* d_finavalu,
-													fp* d_params,
-													fp* d_com) {
+													float* d_initvalu,
+													float* d_finavalu,
+													float* d_params,
+													float* d_com, bool unified) {
 
 	//======================================================================================================================================================
 	//	VARIABLES
 	//======================================================================================================================================================
 
-	static const fp c_1_11 = 41.0 / 840.0;
-	static const fp c6 = 34.0 / 105.0;
-	static const fp c_7_8= 9.0 / 35.0;
-	static const fp c_9_10 = 9.0 / 280.0;
+	static const float c_1_11 = 41.0 / 840.0;
+	static const float c6 = 34.0 / 105.0;
+	static const float c_7_8= 9.0 / 35.0;
+	static const float c_9_10 = 9.0 / 280.0;
 
-	static const fp a2 = 2.0 / 27.0;
-	static const fp a3 = 1.0 / 9.0;
-	static const fp a4 = 1.0 / 6.0;
-	static const fp a5 = 5.0 / 12.0;
-	static const fp a6 = 1.0 / 2.0;
-	static const fp a7 = 5.0 / 6.0;
-	static const fp a8 = 1.0 / 6.0;
-	static const fp a9 = 2.0 / 3.0;
-	static const fp a10 = 1.0 / 3.0;
+	static const float a2 = 2.0 / 27.0;
+	static const float a3 = 1.0 / 9.0;
+	static const float a4 = 1.0 / 6.0;
+	static const float a5 = 5.0 / 12.0;
+	static const float a6 = 1.0 / 2.0;
+	static const float a7 = 5.0 / 6.0;
+	static const float a8 = 1.0 / 6.0;
+	static const float a9 = 2.0 / 3.0;
+	static const float a10 = 1.0 / 3.0;
 
-	static const fp b31 = 1.0 / 36.0;
-	static const fp b32 = 3.0 / 36.0;
-	static const fp b41 = 1.0 / 24.0;
-	static const fp b43 = 3.0 / 24.0;
-	static const fp b51 = 20.0 / 48.0;
-	static const fp b53 = -75.0 / 48.0;
-	static const fp b54 = 75.0 / 48.0;
-	static const fp b61 = 1.0 / 20.0;
-	static const fp b64 = 5.0 / 20.0;
-	static const fp b65 = 4.0 / 20.0;
-	static const fp b71 = -25.0 / 108.0;
-	static const fp b74 =  125.0 / 108.0;
-	static const fp b75 = -260.0 / 108.0;
-	static const fp b76 =  250.0 / 108.0;
-	static const fp b81 = 31.0/300.0;
-	static const fp b85 = 61.0/225.0;
-	static const fp b86 = -2.0/9.0;
-	static const fp b87 = 13.0/900.0;
-	static const fp b91 = 2.0;
-	static const fp b94 = -53.0/6.0;
-	static const fp b95 = 704.0 / 45.0;
-	static const fp b96 = -107.0 / 9.0;
-	static const fp b97 = 67.0 / 90.0;
-	static const fp b98 = 3.0;
-	static const fp b10_1 = -91.0 / 108.0;
-	static const fp b10_4 = 23.0 / 108.0;
-	static const fp b10_5 = -976.0 / 135.0;
-	static const fp b10_6 = 311.0 / 54.0;
-	static const fp b10_7 = -19.0 / 60.0;
-	static const fp b10_8 = 17.0 / 6.0;
-	static const fp b10_9 = -1.0 / 12.0;
-	static const fp b11_1 = 2383.0 / 4100.0;
-	static const fp b11_4 = -341.0 / 164.0;
-	static const fp b11_5 = 4496.0 / 1025.0;
-	static const fp b11_6 = -301.0 / 82.0;
-	static const fp b11_7 = 2133.0 / 4100.0;
-	static const fp b11_8 = 45.0 / 82.0;
-	static const fp b11_9 = 45.0 / 164.0;
-	static const fp b11_10 = 18.0 / 41.0;
-	static const fp b12_1 = 3.0 / 205.0;
-	static const fp b12_6 = - 6.0 / 41.0;
-	static const fp b12_7 = - 3.0 / 205.0;
-	static const fp b12_8 = - 3.0 / 41.0;
-	static const fp b12_9 = 3.0 / 41.0;
-	static const fp b12_10 = 6.0 / 41.0;
-	static const fp b13_1 = -1777.0 / 4100.0;
-	static const fp b13_4 = -341.0 / 164.0;
-	static const fp b13_5 = 4496.0 / 1025.0;
-	static const fp b13_6 = -289.0 / 82.0;
-	static const fp b13_7 = 2193.0 / 4100.0;
-	static const fp b13_8 = 51.0 / 82.0;
-	static const fp b13_9 = 33.0 / 164.0;
-	static const fp b13_10 = 12.0 / 41.0;
+	static const float b31 = 1.0 / 36.0;
+	static const float b32 = 3.0 / 36.0;
+	static const float b41 = 1.0 / 24.0;
+	static const float b43 = 3.0 / 24.0;
+	static const float b51 = 20.0 / 48.0;
+	static const float b53 = -75.0 / 48.0;
+	static const float b54 = 75.0 / 48.0;
+	static const float b61 = 1.0 / 20.0;
+	static const float b64 = 5.0 / 20.0;
+	static const float b65 = 4.0 / 20.0;
+	static const float b71 = -25.0 / 108.0;
+	static const float b74 =  125.0 / 108.0;
+	static const float b75 = -260.0 / 108.0;
+	static const float b76 =  250.0 / 108.0;
+	static const float b81 = 31.0/300.0;
+	static const float b85 = 61.0/225.0;
+	static const float b86 = -2.0/9.0;
+	static const float b87 = 13.0/900.0;
+	static const float b91 = 2.0;
+	static const float b94 = -53.0/6.0;
+	static const float b95 = 704.0 / 45.0;
+	static const float b96 = -107.0 / 9.0;
+	static const float b97 = 67.0 / 90.0;
+	static const float b98 = 3.0;
+	static const float b10_1 = -91.0 / 108.0;
+	static const float b10_4 = 23.0 / 108.0;
+	static const float b10_5 = -976.0 / 135.0;
+	static const float b10_6 = 311.0 / 54.0;
+	static const float b10_7 = -19.0 / 60.0;
+	static const float b10_8 = 17.0 / 6.0;
+	static const float b10_9 = -1.0 / 12.0;
+	static const float b11_1 = 2383.0 / 4100.0;
+	static const float b11_4 = -341.0 / 164.0;
+	static const float b11_5 = 4496.0 / 1025.0;
+	static const float b11_6 = -301.0 / 82.0;
+	static const float b11_7 = 2133.0 / 4100.0;
+	static const float b11_8 = 45.0 / 82.0;
+	static const float b11_9 = 45.0 / 164.0;
+	static const float b11_10 = 18.0 / 41.0;
+	static const float b12_1 = 3.0 / 205.0;
+	static const float b12_6 = - 6.0 / 41.0;
+	static const float b12_7 = - 3.0 / 205.0;
+	static const float b12_8 = - 3.0 / 41.0;
+	static const float b12_9 = 3.0 / 41.0;
+	static const float b12_10 = 6.0 / 41.0;
+	static const float b13_1 = -1777.0 / 4100.0;
+	static const float b13_4 = -341.0 / 164.0;
+	static const float b13_5 = 4496.0 / 1025.0;
+	static const float b13_6 = -289.0 / 82.0;
+	static const float b13_7 = 2193.0 / 4100.0;
+	static const float b13_8 = 51.0 / 82.0;
+	static const float b13_9 = 33.0 / 164.0;
+	static const float b13_10 = 12.0 / 41.0;
 
-	static const fp err_factor  = -41.0 / 840.0;
+	static const float err_factor  = -41.0 / 840.0;
 
-	fp h2_7 = a2 * h;
+	float h2_7 = a2 * h;
 
-	fp timeinst_temp;
-	fp* initvalu_temp;
-	fp** finavalu_temp;
+	float timeinst_temp;
+	float* initvalu_temp;
+	float** finavalu_temp;
 
 	int i;
 
@@ -181,11 +181,20 @@ void embedded_fehlberg_7_8(	fp timeinst,
 	//		TEMPORARY STORAGE ALLOCATION
 	//======================================================================================================================================================
 
-	initvalu_temp= (fp *) malloc(EQUATIONS* sizeof(fp));
+  if (unified) {
+    checkCudaErrors(cudaMallocManaged(&initvalu_temp, EQUATIONS * sizeof(float)));
+  } else {
+    initvalu_temp= (float*) malloc(EQUATIONS * sizeof(float));
+  }
 
-	finavalu_temp= (fp **) malloc(13* sizeof(fp *));
+	finavalu_temp= (float **) malloc(13* sizeof(float *));
 	for (i= 0; i<13; i++){
-		finavalu_temp[i]= (fp *) malloc(EQUATIONS* sizeof(fp));
+    if (unified) {
+      checkCudaErrors(cudaMallocManaged(&finavalu_temp[i], EQUATIONS * sizeof(float)));
+    } else {
+      finavalu_temp[i]= (float *) malloc(EQUATIONS* sizeof(float));
+
+    }
 	}
 
 	//======================================================================================================================================================
@@ -211,7 +220,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		2
@@ -231,7 +240,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		3
@@ -251,7 +260,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		4
@@ -271,7 +280,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		5
@@ -291,7 +300,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		6
@@ -311,7 +320,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		7
@@ -331,7 +340,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		8
@@ -351,7 +360,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		9
@@ -371,7 +380,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		10
@@ -391,7 +400,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		11
@@ -411,7 +420,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		12
@@ -431,7 +440,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//===================================================================================================
 	//		13
@@ -451,7 +460,7 @@ void embedded_fehlberg_7_8(	fp timeinst,
 					d_initvalu,
 					d_finavalu,
 					d_params,
-					d_com);
+					d_com, unified);
 
 	//======================================================================================================================================================
 	//		FINAL VALUE
@@ -473,7 +482,12 @@ void embedded_fehlberg_7_8(	fp timeinst,
 	//		DEALLOCATION
 	//======================================================================================================================================================
 
-	free(initvalu_temp);
-	free(finavalu_temp);
+  if (unified) {
+    checkCudaErrors(cudaFree(initvalu_temp));
+  } else {
+    free(initvalu_temp);
+  }
+  // don't worry about freeing their contents?
+  free(finavalu_temp);
 
 }

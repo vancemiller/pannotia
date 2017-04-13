@@ -85,96 +85,96 @@
 //===============================================================================================================================================================================================================
 //===============================================================================================================================================================================================================
 
-__device__ void embedded_fehlberg_7_8_2(	fp h,
+__device__ void embedded_fehlberg_7_8_2(	float h,
 
-																			fp timeinst,
-																			fp* initvalu,
-																			fp* finavalu,
-																			fp* parameter,
+																			float timeinst,
+																			float* initvalu,
+																			float* finavalu,
+																			float* parameter,
 
-																			fp* error,
-																			fp* initvalu_temp,
-																			fp* finavalu_temp,
-																			fp* com) {
+																			float* error,
+																			float* initvalu_temp,
+																			float* finavalu_temp,
+																			float* com) {
 
 	//======================================================================================================================================================
 	//	VARIABLES
 	//======================================================================================================================================================
 
-	const fp c_1_11 = 41.0 / 840.0;
-	const fp c6 = 34.0 / 105.0;
-	const fp c_7_8= 9.0 / 35.0;
-	const fp c_9_10 = 9.0 / 280.0;
+	const float c_1_11 = 41.0 / 840.0;
+	const float c6 = 34.0 / 105.0;
+	const float c_7_8= 9.0 / 35.0;
+	const float c_9_10 = 9.0 / 280.0;
 
-	const fp a2 = 2.0 / 27.0;
-	const fp a3 = 1.0 / 9.0;
-	const fp a4 = 1.0 / 6.0;
-	const fp a5 = 5.0 / 12.0;
-	const fp a6 = 1.0 / 2.0;
-	const fp a7 = 5.0 / 6.0;
-	const fp a8 = 1.0 / 6.0;
-	const fp a9 = 2.0 / 3.0;
-	const fp a10 = 1.0 / 3.0;
+	const float a2 = 2.0 / 27.0;
+	const float a3 = 1.0 / 9.0;
+	const float a4 = 1.0 / 6.0;
+	const float a5 = 5.0 / 12.0;
+	const float a6 = 1.0 / 2.0;
+	const float a7 = 5.0 / 6.0;
+	const float a8 = 1.0 / 6.0;
+	const float a9 = 2.0 / 3.0;
+	const float a10 = 1.0 / 3.0;
 
-	const fp b31 = 1.0 / 36.0;
-	const fp b32 = 3.0 / 36.0;
-	const fp b41 = 1.0 / 24.0;
-	const fp b43 = 3.0 / 24.0;
-	const fp b51 = 20.0 / 48.0;
-	const fp b53 = -75.0 / 48.0;
-	const fp b54 = 75.0 / 48.0;
-	const fp b61 = 1.0 / 20.0;
-	const fp b64 = 5.0 / 20.0;
-	const fp b65 = 4.0 / 20.0;
-	const fp b71 = -25.0 / 108.0;
-	const fp b74 =  125.0 / 108.0;
-	const fp b75 = -260.0 / 108.0;
-	const fp b76 =  250.0 / 108.0;
-	const fp b81 = 31.0/300.0;
-	const fp b85 = 61.0/225.0;
-	const fp b86 = -2.0/9.0;
-	const fp b87 = 13.0/900.0;
-	const fp b91 = 2.0;
-	const fp b94 = -53.0/6.0;
-	const fp b95 = 704.0 / 45.0;
-	const fp b96 = -107.0 / 9.0;
-	const fp b97 = 67.0 / 90.0;
-	const fp b98 = 3.0;
-	const fp b10_1 = -91.0 / 108.0;
-	const fp b10_4 = 23.0 / 108.0;
-	const fp b10_5 = -976.0 / 135.0;
-	const fp b10_6 = 311.0 / 54.0;
-	const fp b10_7 = -19.0 / 60.0;
-	const fp b10_8 = 17.0 / 6.0;
-	const fp b10_9 = -1.0 / 12.0;
-	const fp b11_1 = 2383.0 / 4100.0;
-	const fp b11_4 = -341.0 / 164.0;
-	const fp b11_5 = 4496.0 / 1025.0;
-	const fp b11_6 = -301.0 / 82.0;
-	const fp b11_7 = 2133.0 / 4100.0;
-	const fp b11_8 = 45.0 / 82.0;
-	const fp b11_9 = 45.0 / 164.0;
-	const fp b11_10 = 18.0 / 41.0;
-	const fp b12_1 = 3.0 / 205.0;
-	const fp b12_6 = - 6.0 / 41.0;
-	const fp b12_7 = - 3.0 / 205.0;
-	const fp b12_8 = - 3.0 / 41.0;
-	const fp b12_9 = 3.0 / 41.0;
-	const fp b12_10 = 6.0 / 41.0;
-	const fp b13_1 = -1777.0 / 4100.0;
-	const fp b13_4 = -341.0 / 164.0;
-	const fp b13_5 = 4496.0 / 1025.0;
-	const fp b13_6 = -289.0 / 82.0;
-	const fp b13_7 = 2193.0 / 4100.0;
-	const fp b13_8 = 51.0 / 82.0;
-	const fp b13_9 = 33.0 / 164.0;
-	const fp b13_10 = 12.0 / 41.0;
+	const float b31 = 1.0 / 36.0;
+	const float b32 = 3.0 / 36.0;
+	const float b41 = 1.0 / 24.0;
+	const float b43 = 3.0 / 24.0;
+	const float b51 = 20.0 / 48.0;
+	const float b53 = -75.0 / 48.0;
+	const float b54 = 75.0 / 48.0;
+	const float b61 = 1.0 / 20.0;
+	const float b64 = 5.0 / 20.0;
+	const float b65 = 4.0 / 20.0;
+	const float b71 = -25.0 / 108.0;
+	const float b74 =  125.0 / 108.0;
+	const float b75 = -260.0 / 108.0;
+	const float b76 =  250.0 / 108.0;
+	const float b81 = 31.0/300.0;
+	const float b85 = 61.0/225.0;
+	const float b86 = -2.0/9.0;
+	const float b87 = 13.0/900.0;
+	const float b91 = 2.0;
+	const float b94 = -53.0/6.0;
+	const float b95 = 704.0 / 45.0;
+	const float b96 = -107.0 / 9.0;
+	const float b97 = 67.0 / 90.0;
+	const float b98 = 3.0;
+	const float b10_1 = -91.0 / 108.0;
+	const float b10_4 = 23.0 / 108.0;
+	const float b10_5 = -976.0 / 135.0;
+	const float b10_6 = 311.0 / 54.0;
+	const float b10_7 = -19.0 / 60.0;
+	const float b10_8 = 17.0 / 6.0;
+	const float b10_9 = -1.0 / 12.0;
+	const float b11_1 = 2383.0 / 4100.0;
+	const float b11_4 = -341.0 / 164.0;
+	const float b11_5 = 4496.0 / 1025.0;
+	const float b11_6 = -301.0 / 82.0;
+	const float b11_7 = 2133.0 / 4100.0;
+	const float b11_8 = 45.0 / 82.0;
+	const float b11_9 = 45.0 / 164.0;
+	const float b11_10 = 18.0 / 41.0;
+	const float b12_1 = 3.0 / 205.0;
+	const float b12_6 = - 6.0 / 41.0;
+	const float b12_7 = - 3.0 / 205.0;
+	const float b12_8 = - 3.0 / 41.0;
+	const float b12_9 = 3.0 / 41.0;
+	const float b12_10 = 6.0 / 41.0;
+	const float b13_1 = -1777.0 / 4100.0;
+	const float b13_4 = -341.0 / 164.0;
+	const float b13_5 = 4496.0 / 1025.0;
+	const float b13_6 = -289.0 / 82.0;
+	const float b13_7 = 2193.0 / 4100.0;
+	const float b13_8 = 51.0 / 82.0;
+	const float b13_9 = 33.0 / 164.0;
+	const float b13_10 = 12.0 / 41.0;
 
-	const fp err_factor  = -41.0 / 840.0;
+	const float err_factor  = -41.0 / 840.0;
 
-	fp h2_7 = a2 * h;
+	float h2_7 = a2 * h;
 
-	fp timeinst_temp;
+	float timeinst_temp;
 
 	int i,j;
 

@@ -5,10 +5,10 @@
 //===============================================================================================================================================================================================================
 
 __device__ void kernel_2(	int timeinst,
-											fp* initvalu,
-											fp* params,
-											fp* finavalu,
-											fp* com){
+											float* initvalu,
+											float* params,
+											float* finavalu,
+											float* com){
 
 	//======================================================================================================================================================
 	// 	VARIABLES
@@ -29,9 +29,9 @@ __device__ void kernel_2(	int timeinst,
 	int com_offset_Cyt;															// kernel-kernel Cyt communication offset
 
 	// module parameters
-	fp CaDyad;																			// from ECC model, *** Converting from [mM] to [uM] ***
-	fp CaSL;																				// from ECC model, *** Converting from [mM] to [uM] ***
-	fp CaCyt;																			// from ECC model, *** Converting from [mM] to [uM] ***
+	float CaDyad;																			// from ECC model, *** Converting from [mM] to [uM] ***
+	float CaSL;																				// from ECC model, *** Converting from [mM] to [uM] ***
+	float CaCyt;																			// from ECC model, *** Converting from [mM] to [uM] ***
 
 	// counter
 	int i;
@@ -126,10 +126,10 @@ __device__ void kernel_2(	int timeinst,
 	//====================================================================================================
 
 	for(i=0; i<EQUATIONS; i++){
-		if (isnan(finavalu[i]) == 1){ 
+		if (isnan(finavalu[i]) == 1){
 			finavalu[i] = 0.0001;												// for NAN set rate of change to 0.0001
 		}
-		else if (isinf(finavalu[i]) == 1){ 
+		else if (isinf(finavalu[i]) == 1){
 			finavalu[i] = 0.0001;												// for INF set rate of change to 0.0001
 		}
 	}

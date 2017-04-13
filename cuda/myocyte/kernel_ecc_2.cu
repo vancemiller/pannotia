@@ -1,18 +1,18 @@
 //=====================================================================
-//	MAIN FUNCTION														
+//	MAIN FUNCTION
 //=====================================================================
-__device__ void kernel_ecc_2(	fp timeinst,
-													fp* d_initvalu,
-													fp* d_finavalu,
+__device__ void kernel_ecc_2(	float timeinst,
+													float* d_initvalu,
+													float* d_finavalu,
 													int valu_offset,
-													fp* d_params){
+													float* d_params){
 
 	//=====================================================================
-	//	VARIABLES														
+	//	VARIABLES
 	//=====================================================================
 
 	// input parameters
-	fp cycleLength;
+	float cycleLength;
 
 	// variable references				// GET VARIABLES FROM MEMORY AND SAVE LOCALLY !!!!!!!!!!!!!!!!!!
 	int offset_1;
@@ -63,372 +63,372 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	int offset_46;
 
 	// stored input array
-	fp d_initvalu_1;
-	fp d_initvalu_2;
-	fp d_initvalu_3;
-	fp d_initvalu_4;
-	fp d_initvalu_5;
-	fp d_initvalu_6;
-	fp d_initvalu_7;
-	fp d_initvalu_8;
-	fp d_initvalu_9;
-	fp d_initvalu_10;
-	fp d_initvalu_11;
-	fp d_initvalu_12;
-	fp d_initvalu_13;
-	fp d_initvalu_14;
-	fp d_initvalu_15;
-	fp d_initvalu_16;
-	fp d_initvalu_17;
-	fp d_initvalu_18;
-	fp d_initvalu_19;
-	fp d_initvalu_20;
-	fp d_initvalu_21;
-	// fp d_initvalu_22;
-	fp d_initvalu_23;
-	fp d_initvalu_24;
-	fp d_initvalu_25;
-	fp d_initvalu_26;
-	fp d_initvalu_27;
-	fp d_initvalu_28;
-	fp d_initvalu_29;
-	fp d_initvalu_30;
-	fp d_initvalu_31;
-	fp d_initvalu_32;
-	fp d_initvalu_33;
-	fp d_initvalu_34;
-	fp d_initvalu_35;
-	fp d_initvalu_36;
-	fp d_initvalu_37;
-	fp d_initvalu_38;
-	fp d_initvalu_39;
-	fp d_initvalu_40;
-	// fp d_initvalu_41;
-	// fp d_initvalu_42;
-	// fp d_initvalu_43;
-	// fp d_initvalu_44;
-	// fp d_initvalu_45;
-	// fp d_initvalu_46;
+	float d_initvalu_1;
+	float d_initvalu_2;
+	float d_initvalu_3;
+	float d_initvalu_4;
+	float d_initvalu_5;
+	float d_initvalu_6;
+	float d_initvalu_7;
+	float d_initvalu_8;
+	float d_initvalu_9;
+	float d_initvalu_10;
+	float d_initvalu_11;
+	float d_initvalu_12;
+	float d_initvalu_13;
+	float d_initvalu_14;
+	float d_initvalu_15;
+	float d_initvalu_16;
+	float d_initvalu_17;
+	float d_initvalu_18;
+	float d_initvalu_19;
+	float d_initvalu_20;
+	float d_initvalu_21;
+	// float d_initvalu_22;
+	float d_initvalu_23;
+	float d_initvalu_24;
+	float d_initvalu_25;
+	float d_initvalu_26;
+	float d_initvalu_27;
+	float d_initvalu_28;
+	float d_initvalu_29;
+	float d_initvalu_30;
+	float d_initvalu_31;
+	float d_initvalu_32;
+	float d_initvalu_33;
+	float d_initvalu_34;
+	float d_initvalu_35;
+	float d_initvalu_36;
+	float d_initvalu_37;
+	float d_initvalu_38;
+	float d_initvalu_39;
+	float d_initvalu_40;
+	// float d_initvalu_41;
+	// float d_initvalu_42;
+	// float d_initvalu_43;
+	// float d_initvalu_44;
+	// float d_initvalu_45;
+	// float d_initvalu_46;
 
 	// matlab constants undefined in c
-	fp pi;
+	float pi;
 
 	// Constants
-	fp R;																			// [J/kmol*K]  
-	fp Frdy;																		// [C/mol]  
-	fp Temp;																		// [K] 310
-	fp FoRT;																		//
-	fp Cmem;																		// [F] membrane capacitance
-	fp Qpow;
+	float R;																			// [J/kmol*K]
+	float Frdy;																		// [C/mol]
+	float Temp;																		// [K] 310
+	float FoRT;																		//
+	float Cmem;																		// [F] membrane capacitance
+	float Qpow;
 
 	// Cell geometry
-	fp cellLength;																	// cell length [um]
-	fp cellRadius;																	// cell radius [um]
-	// fp junctionLength;																// junc length [um]
-	// fp junctionRadius;																// junc radius [um]
-	// fp distSLcyto;																	// dist. SL to cytosol [um]
-	// fp distJuncSL;																	// dist. junc to SL [um]
-	// fp DcaJuncSL;																	// Dca junc to SL [cm^2/sec]
-	// fp DcaSLcyto;																	// Dca SL to cyto [cm^2/sec]
-	// fp DnaJuncSL;																	// Dna junc to SL [cm^2/sec]
-	// fp DnaSLcyto;																	// Dna SL to cyto [cm^2/sec] 
-	fp Vcell;																		// [L]
-	fp Vmyo; 
-	fp Vsr; 
-	fp Vsl; 
-	fp Vjunc; 
-	// fp SAjunc;																		// [um^2]
-	// fp SAsl;																		// [um^2]
-	fp J_ca_juncsl;																	// [L/msec]
-	fp J_ca_slmyo;																	// [L/msec]
-	fp J_na_juncsl;																	// [L/msec] 
-	fp J_na_slmyo;																	// [L/msec] 
+	float cellLength;																	// cell length [um]
+	float cellRadius;																	// cell radius [um]
+	// float junctionLength;																// junc length [um]
+	// float junctionRadius;																// junc radius [um]
+	// float distSLcyto;																	// dist. SL to cytosol [um]
+	// float distJuncSL;																	// dist. junc to SL [um]
+	// float DcaJuncSL;																	// Dca junc to SL [cm^2/sec]
+	// float DcaSLcyto;																	// Dca SL to cyto [cm^2/sec]
+	// float DnaJuncSL;																	// Dna junc to SL [cm^2/sec]
+	// float DnaSLcyto;																	// Dna SL to cyto [cm^2/sec]
+	float Vcell;																		// [L]
+	float Vmyo;
+	float Vsr;
+	float Vsl;
+	float Vjunc;
+	// float SAjunc;																		// [um^2]
+	// float SAsl;																		// [um^2]
+	float J_ca_juncsl;																	// [L/msec]
+	float J_ca_slmyo;																	// [L/msec]
+	float J_na_juncsl;																	// [L/msec]
+	float J_na_slmyo;																	// [L/msec]
 
 	// Fractional currents in compartments
-	fp Fjunc;   
-	fp Fsl;
-	fp Fjunc_CaL; 
-	fp Fsl_CaL;
+	float Fjunc;
+	float Fsl;
+	float Fjunc_CaL;
+	float Fsl_CaL;
 
-	// Fixed ion concentrations     
-	fp Cli;																			// Intracellular Cl  [mM]
-	fp Clo;																			// Extracellular Cl  [mM]
-	fp Ko;																			// Extracellular K   [mM]
-	fp Nao;																			// Extracellular Na  [mM]
-	fp Cao;																			// Extracellular Ca  [mM]
-	fp Mgi;																			// Intracellular Mg  [mM]
+	// Fixed ion concentrations
+	float Cli;																			// Intracellular Cl  [mM]
+	float Clo;																			// Extracellular Cl  [mM]
+	float Ko;																			// Extracellular K   [mM]
+	float Nao;																			// Extracellular Na  [mM]
+	float Cao;																			// Extracellular Ca  [mM]
+	float Mgi;																			// Intracellular Mg  [mM]
 
 	// Nernst Potentials
-	fp ena_junc;																	// [mV]
-	fp ena_sl;																		// [mV]
-	fp ek;																			// [mV]
-	fp eca_junc;																	// [mV]
-	fp eca_sl;																		// [mV]
-	fp ecl;																			// [mV]
+	float ena_junc;																	// [mV]
+	float ena_sl;																		// [mV]
+	float ek;																			// [mV]
+	float eca_junc;																	// [mV]
+	float eca_sl;																		// [mV]
+	float ecl;																			// [mV]
 
 	// Na transport parameters
-	fp GNa;																			// [mS/uF]
-	fp GNaB;																		// [mS/uF] 
-	fp IbarNaK;																		// [uA/uF]
-	fp KmNaip;																		// [mM]
-	fp KmKo;																		// [mM]
-	// fp Q10NaK;  
-	// fp Q10KmNai;
+	float GNa;																			// [mS/uF]
+	float GNaB;																		// [mS/uF]
+	float IbarNaK;																		// [uA/uF]
+	float KmNaip;																		// [mM]
+	float KmKo;																		// [mM]
+	// float Q10NaK;
+	// float Q10KmNai;
 
 	// K current parameters
-	fp pNaK;      
-	fp GtoSlow;																		// [mS/uF] 
-	fp GtoFast;																		// [mS/uF] 
-	fp gkp;
+	float pNaK;
+	float GtoSlow;																		// [mS/uF]
+	float GtoFast;																		// [mS/uF]
+	float gkp;
 
 	// Cl current parameters
-	fp GClCa;																		// [mS/uF]
-	fp GClB;																		// [mS/uF]
-	fp KdClCa;																		// [mM]																// [mM]
+	float GClCa;																		// [mS/uF]
+	float GClB;																		// [mS/uF]
+	float KdClCa;																		// [mM]																// [mM]
 
 	// I_Ca parameters
-	fp pNa;																			// [cm/sec]
-	fp pCa;																			// [cm/sec]
-	fp pK;																			// [cm/sec]
-	// fp KmCa;																		// [mM]
-	fp Q10CaL;       
+	float pNa;																			// [cm/sec]
+	float pCa;																			// [cm/sec]
+	float pK;																			// [cm/sec]
+	// float KmCa;																		// [mM]
+	float Q10CaL;
 
 	// Ca transport parameters
-	fp IbarNCX;																		// [uA/uF]
-	fp KmCai;																		// [mM]
-	fp KmCao;																		// [mM]
-	fp KmNai;																		// [mM]
-	fp KmNao;																		// [mM]
-	fp ksat;																			// [none]  
-	fp nu;																			// [none]
-	fp Kdact;																		// [mM] 
-	fp Q10NCX;																		// [none]
-	fp IbarSLCaP;																	// [uA/uF]
-	fp KmPCa;																		// [mM] 
-	fp GCaB;																		// [uA/uF] 
-	fp Q10SLCaP;																	// [none]																	// [none]
+	float IbarNCX;																		// [uA/uF]
+	float KmCai;																		// [mM]
+	float KmCao;																		// [mM]
+	float KmNai;																		// [mM]
+	float KmNao;																		// [mM]
+	float ksat;																			// [none]
+	float nu;																			// [none]
+	float Kdact;																		// [mM]
+	float Q10NCX;																		// [none]
+	float IbarSLCaP;																	// [uA/uF]
+	float KmPCa;																		// [mM]
+	float GCaB;																		// [uA/uF]
+	float Q10SLCaP;																	// [none]																	// [none]
 
 	// SR flux parameters
-	fp Q10SRCaP;																	// [none]
-	fp Vmax_SRCaP;																	// [mM/msec] (mmol/L cytosol/msec)
-	fp Kmf;																			// [mM]
-	fp Kmr;																			// [mM]L cytosol
-	fp hillSRCaP;																	// [mM]
-	fp ks;																			// [1/ms]      
-	fp koCa;																		// [mM^-2 1/ms]      
-	fp kom;																			// [1/ms]     
-	fp kiCa;																		// [1/mM/ms]
-	fp kim;																			// [1/ms]
-	fp ec50SR;																		// [mM]
+	float Q10SRCaP;																	// [none]
+	float Vmax_SRCaP;																	// [mM/msec] (mmol/L cytosol/msec)
+	float Kmf;																			// [mM]
+	float Kmr;																			// [mM]L cytosol
+	float hillSRCaP;																	// [mM]
+	float ks;																			// [1/ms]
+	float koCa;																		// [mM^-2 1/ms]
+	float kom;																			// [1/ms]
+	float kiCa;																		// [1/mM/ms]
+	float kim;																			// [1/ms]
+	float ec50SR;																		// [mM]
 
 	// Buffering parameters
-	fp Bmax_Naj;																	// [mM] 
-	fp Bmax_Nasl;																	// [mM]
-	fp koff_na;																		// [1/ms]
-	fp kon_na;																		// [1/mM/ms]
-	fp Bmax_TnClow;																	// [mM], TnC low affinity
-	fp koff_tncl;																	// [1/ms] 
-	fp kon_tncl;																	// [1/mM/ms]
-	fp Bmax_TnChigh;																// [mM], TnC high affinity 
-	fp koff_tnchca;																	// [1/ms] 
-	fp kon_tnchca;																	// [1/mM/ms]
-	fp koff_tnchmg;																	// [1/ms] 
-	fp kon_tnchmg;																	// [1/mM/ms]
-	// fp Bmax_CaM;																	// [mM], CaM buffering
-	// fp koff_cam;																	// [1/ms] 
-	// fp kon_cam;																		// [1/mM/ms]
-	fp Bmax_myosin;																	// [mM], Myosin buffering
-	fp koff_myoca;																	// [1/ms]
-	fp kon_myoca;																	// [1/mM/ms]
-	fp koff_myomg;																	// [1/ms]
-	fp kon_myomg;																	// [1/mM/ms]
-	fp Bmax_SR;																		// [mM] 
-	fp koff_sr;																		// [1/ms]
-	fp kon_sr;																		// [1/mM/ms]
-	fp Bmax_SLlowsl;																// [mM], SL buffering
-	fp Bmax_SLlowj;																	// [mM]    
-	fp koff_sll;																	// [1/ms]
-	fp kon_sll;																		// [1/mM/ms]
-	fp Bmax_SLhighsl;																// [mM] 
-	fp Bmax_SLhighj;																// [mM] 
-	fp koff_slh;																	// [1/ms]
-	fp kon_slh;																		// [1/mM/ms]
-	fp Bmax_Csqn;																	// 140e-3*Vmyo/Vsr; [mM] 
-	fp koff_csqn;																	// [1/ms] 
-	fp kon_csqn;																	// [1/mM/ms] 
+	float Bmax_Naj;																	// [mM]
+	float Bmax_Nasl;																	// [mM]
+	float koff_na;																		// [1/ms]
+	float kon_na;																		// [1/mM/ms]
+	float Bmax_TnClow;																	// [mM], TnC low affinity
+	float koff_tncl;																	// [1/ms]
+	float kon_tncl;																	// [1/mM/ms]
+	float Bmax_TnChigh;																// [mM], TnC high affinity
+	float koff_tnchca;																	// [1/ms]
+	float kon_tnchca;																	// [1/mM/ms]
+	float koff_tnchmg;																	// [1/ms]
+	float kon_tnchmg;																	// [1/mM/ms]
+	// float Bmax_CaM;																	// [mM], CaM buffering
+	// float koff_cam;																	// [1/ms]
+	// float kon_cam;																		// [1/mM/ms]
+	float Bmax_myosin;																	// [mM], Myosin buffering
+	float koff_myoca;																	// [1/ms]
+	float kon_myoca;																	// [1/mM/ms]
+	float koff_myomg;																	// [1/ms]
+	float kon_myomg;																	// [1/mM/ms]
+	float Bmax_SR;																		// [mM]
+	float koff_sr;																		// [1/ms]
+	float kon_sr;																		// [1/mM/ms]
+	float Bmax_SLlowsl;																// [mM], SL buffering
+	float Bmax_SLlowj;																	// [mM]
+	float koff_sll;																	// [1/ms]
+	float kon_sll;																		// [1/mM/ms]
+	float Bmax_SLhighsl;																// [mM]
+	float Bmax_SLhighj;																// [mM]
+	float koff_slh;																	// [1/ms]
+	float kon_slh;																		// [1/mM/ms]
+	float Bmax_Csqn;																	// 140e-3*Vmyo/Vsr; [mM]
+	float koff_csqn;																	// [1/ms]
+	float kon_csqn;																	// [1/mM/ms]
 
 	// I_Na: Fast Na Current
-	fp am;
-	fp bm;
-	fp ah;
-	fp bh;
-	fp aj;
-	fp bj;
-	fp I_Na_junc;
-	fp I_Na_sl;
-	// fp I_Na;
+	float am;
+	float bm;
+	float ah;
+	float bh;
+	float aj;
+	float bj;
+	float I_Na_junc;
+	float I_Na_sl;
+	// float I_Na;
 
 	// I_nabk: Na Background Current
-	fp I_nabk_junc;
-	fp I_nabk_sl;
-	// fp I_nabk;
+	float I_nabk_junc;
+	float I_nabk_sl;
+	// float I_nabk;
 
 	// I_nak: Na/K Pump Current
-	fp sigma;
-	fp fnak;
-	fp I_nak_junc;
-	fp I_nak_sl;
-	fp I_nak;
+	float sigma;
+	float fnak;
+	float I_nak_junc;
+	float I_nak_sl;
+	float I_nak;
 
 	// I_kr: Rapidly Activating K Current
-	fp gkr;
-	fp xrss;
-	fp tauxr;
-	fp rkr;
-	fp I_kr;
+	float gkr;
+	float xrss;
+	float tauxr;
+	float rkr;
+	float I_kr;
 
 	// I_ks: Slowly Activating K Current
-	fp pcaks_junc; 
-	fp pcaks_sl;  
-	fp gks_junc;
-	fp gks_sl; 
-	fp eks;	
-	fp xsss;
-	fp tauxs; 
-	fp I_ks_junc;
-	fp I_ks_sl;
-	fp I_ks;
+	float pcaks_junc;
+	float pcaks_sl;
+	float gks_junc;
+	float gks_sl;
+	float eks;
+	float xsss;
+	float tauxs;
+	float I_ks_junc;
+	float I_ks_sl;
+	float I_ks;
 
 	// I_kp: Plateau K current
-	fp kp_kp;
-	fp I_kp_junc;
-	fp I_kp_sl;
-	fp I_kp;
+	float kp_kp;
+	float I_kp_junc;
+	float I_kp_sl;
+	float I_kp;
 
 	// I_to: Transient Outward K Current (slow and fast components)
-	fp xtoss;
-	fp ytoss;
-	fp rtoss;
-	fp tauxtos;
-	fp tauytos;
-	fp taurtos; 
-	fp I_tos;	
+	float xtoss;
+	float ytoss;
+	float rtoss;
+	float tauxtos;
+	float tauytos;
+	float taurtos;
+	float I_tos;
 
 	//
-	fp tauxtof;
-	fp tauytof;
-	fp I_tof;
-	fp I_to;
+	float tauxtof;
+	float tauytof;
+	float I_tof;
+	float I_to;
 
 	// I_ki: Time-Independent K Current
-	fp aki;
-	fp bki;
-	fp kiss;
-	fp I_ki;
+	float aki;
+	float bki;
+	float kiss;
+	float I_ki;
 
 	// I_ClCa: Ca-activated Cl Current, I_Clbk: background Cl Current
-	fp I_ClCa_junc;
-	fp I_ClCa_sl;
-	fp I_ClCa;
-	fp I_Clbk;
+	float I_ClCa_junc;
+	float I_ClCa_sl;
+	float I_ClCa;
+	float I_Clbk;
 
 	// I_Ca: L-type Calcium Current
-	fp dss;
-	fp taud;
-	fp fss;
-	fp tauf;
+	float dss;
+	float taud;
+	float fss;
+	float tauf;
 
 	//
-	fp ibarca_j;
-	fp ibarca_sl;
-	fp ibark;
-	fp ibarna_j;
-	fp ibarna_sl;
-	fp I_Ca_junc;
-	fp I_Ca_sl;
-	fp I_Ca;
-	fp I_CaK;
-	fp I_CaNa_junc;
-	fp I_CaNa_sl;
-	// fp I_CaNa;
-	// fp I_Catot;
+	float ibarca_j;
+	float ibarca_sl;
+	float ibark;
+	float ibarna_j;
+	float ibarna_sl;
+	float I_Ca_junc;
+	float I_Ca_sl;
+	float I_Ca;
+	float I_CaK;
+	float I_CaNa_junc;
+	float I_CaNa_sl;
+	// float I_CaNa;
+	// float I_Catot;
 
 	// I_ncx: Na/Ca Exchanger flux
-	fp Ka_junc;
-	fp Ka_sl;
-	fp s1_junc;
-	fp s1_sl;
-	fp s2_junc;
-	fp s3_junc;
-	fp s2_sl;
-	fp s3_sl;
-	fp I_ncx_junc;
-	fp I_ncx_sl;
-	fp I_ncx;
+	float Ka_junc;
+	float Ka_sl;
+	float s1_junc;
+	float s1_sl;
+	float s2_junc;
+	float s3_junc;
+	float s2_sl;
+	float s3_sl;
+	float I_ncx_junc;
+	float I_ncx_sl;
+	float I_ncx;
 
 	// I_pca: Sarcolemmal Ca Pump Current
-	fp I_pca_junc;
-	fp I_pca_sl;
-	fp I_pca;
+	float I_pca_junc;
+	float I_pca_sl;
+	float I_pca;
 
 	// I_cabk: Ca Background Current
-	fp I_cabk_junc;
-	fp I_cabk_sl;
-	fp I_cabk;
-	
-	// SR fluxes: Calcium Release, SR Ca pump, SR Ca leak														
-	fp MaxSR;
-	fp MinSR;
-	fp kCaSR;
-	fp koSRCa;
-	fp kiSRCa;
-	fp RI;
-	fp J_SRCarel;																	// [mM/ms]
-	fp J_serca;
-	fp J_SRleak;																		//   [mM/ms]
+	float I_cabk_junc;
+	float I_cabk_sl;
+	float I_cabk;
+
+	// SR fluxes: Calcium Release, SR Ca pump, SR Ca leak
+	float MaxSR;
+	float MinSR;
+	float kCaSR;
+	float koSRCa;
+	float kiSRCa;
+	float RI;
+	float J_SRCarel;																	// [mM/ms]
+	float J_serca;
+	float J_SRleak;																		//   [mM/ms]
 
 	// Cytosolic Ca Buffers
-	fp J_CaB_cytosol;
+	float J_CaB_cytosol;
 
 	// Junctional and SL Ca Buffers
-	fp J_CaB_junction;
-	fp J_CaB_sl;
+	float J_CaB_junction;
+	float J_CaB_sl;
 
 	// SR Ca Concentrations
-	fp oneovervsr;
+	float oneovervsr;
 
 	// Sodium Concentrations
-	fp I_Na_tot_junc;																// [uA/uF]
-	fp I_Na_tot_sl;																	// [uA/uF]
-	fp oneovervsl;
+	float I_Na_tot_junc;																// [uA/uF]
+	float I_Na_tot_sl;																	// [uA/uF]
+	float oneovervsl;
 
 	// Potassium Concentration
-	fp I_K_tot;
+	float I_K_tot;
 
 	// Calcium Concentrations
-	fp I_Ca_tot_junc;																// [uA/uF]
-	fp I_Ca_tot_sl;																	// [uA/uF]
-	// fp junc_sl;
-	// fp sl_junc;
-	// fp sl_myo;
-	// fp myo_sl;
+	float I_Ca_tot_junc;																// [uA/uF]
+	float I_Ca_tot_sl;																	// [uA/uF]
+	// float junc_sl;
+	// float sl_junc;
+	// float sl_myo;
+	// float myo_sl;
 
-	//	Simulation type													
+	//	Simulation type
 	int state;																			// 0-none; 1-pace; 2-vclamp
-	fp I_app;
-	fp V_hold;
-	fp V_test;
-	fp V_clamp;
-	fp R_clamp;
-	
-	//	Membrane Potential												
-	fp I_Na_tot;																		// [uA/uF]
-	fp I_Cl_tot;																		// [uA/uF]
-	fp I_Ca_tot;
-	fp I_tot;
+	float I_app;
+	float V_hold;
+	float V_test;
+	float V_clamp;
+	float R_clamp;
+
+	//	Membrane Potential
+	float I_Na_tot;																		// [uA/uF]
+	float I_Cl_tot;																		// [uA/uF]
+	float I_Ca_tot;
+	float I_tot;
 
 	//=====================================================================
-	//	EXECUTION														
+	//	EXECUTION
 	//=====================================================================
 
 	// input parameters
@@ -534,8 +534,8 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	pi = 3.1416;
 
 	// Constants
-	R = 8314;																			// [J/kmol*K]  
-	Frdy = 96485;																		// [C/mol]  
+	R = 8314;																			// [J/kmol*K]
+	Frdy = 96485;																		// [C/mol]
 	Temp = 310;																			// [K] 310
 	FoRT = Frdy/R/Temp;																	//
 	Cmem = 1.3810e-10;																	// [F] membrane capacitance
@@ -551,26 +551,26 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	// DcaJuncSL = 1.64e-6;																// Dca junc to SL [cm^2/sec]
 	// DcaSLcyto = 1.22e-6;																// Dca SL to cyto [cm^2/sec]
 	// DnaJuncSL = 1.09e-5;																// Dna junc to SL [cm^2/sec]
-	// DnaSLcyto = 1.79e-5;																// Dna SL to cyto [cm^2/sec] 
+	// DnaSLcyto = 1.79e-5;																// Dna SL to cyto [cm^2/sec]
 	Vcell = pi*pow(cellRadius,2)*cellLength*1e-15;											// [L]
-	Vmyo = 0.65*Vcell; 
-	Vsr = 0.035*Vcell; 
-	Vsl = 0.02*Vcell; 
-	Vjunc = 0.0539*0.01*Vcell; 
+	Vmyo = 0.65*Vcell;
+	Vsr = 0.035*Vcell;
+	Vsl = 0.02*Vcell;
+	Vjunc = 0.0539*0.01*Vcell;
 	// SAjunc = 20150*pi*2*junctionLength*junctionRadius;									// [um^2]
 	// SAsl = pi*2*cellRadius*cellLength;													// [um^2]
 	J_ca_juncsl = 1/1.2134e12;															// [L/msec]
 	J_ca_slmyo = 1/2.68510e11;															// [L/msec]
-	J_na_juncsl = 1/(1.6382e12/3*100);													// [L/msec] 
-	J_na_slmyo = 1/(1.8308e10/3*100);													// [L/msec] 
+	J_na_juncsl = 1/(1.6382e12/3*100);													// [L/msec]
+	J_na_slmyo = 1/(1.8308e10/3*100);													// [L/msec]
 
 	// Fractional currents in compartments
-	Fjunc = 0.11;   
+	Fjunc = 0.11;
 	Fsl = 1-Fjunc;
-	Fjunc_CaL = 0.9; 
+	Fjunc_CaL = 0.9;
 	Fsl_CaL = 1-Fjunc_CaL;
 
-	// Fixed ion concentrations     
+	// Fixed ion concentrations
 	Cli = 15;																			// Intracellular Cl  [mM]
 	Clo = 150;																			// Extracellular Cl  [mM]
 	Ko = 5.4;																			// Extracellular K   [mM]
@@ -588,17 +588,17 @@ __device__ void kernel_ecc_2(	fp timeinst,
 
 	// Na transport parameters
 	GNa =  16.0;																		// [mS/uF]
-	GNaB = 0.297e-3;																	// [mS/uF] 
+	GNaB = 0.297e-3;																	// [mS/uF]
 	IbarNaK = 1.90719;																	// [uA/uF]
 	KmNaip = 11;																		// [mM]
 	KmKo = 1.5;																			// [mM]
-	// Q10NaK = 1.63;  
+	// Q10NaK = 1.63;
 	// Q10KmNai = 1.39;
 
 	// K current parameters
-	pNaK = 0.01833;      
-	GtoSlow = 0.06;																		// [mS/uF] 
-	GtoFast = 0.02;																		// [mS/uF] 
+	pNaK = 0.01833;
+	GtoSlow = 0.06;																		// [mS/uF]
+	GtoFast = 0.02;																		// [mS/uF]
 	gkp = 0.001;
 
 	// Cl current parameters
@@ -611,7 +611,7 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	pCa = 5.4e-4;																		// [cm/sec]
 	pK = 2.7e-7;																		// [cm/sec]
 	// KmCa = 0.6e-3;																		// [mM]
-	Q10CaL = 1.8;       
+	Q10CaL = 1.8;
 
 	// Ca transport parameters
 	IbarNCX = 9.0;																		// [uA/uF]
@@ -619,13 +619,13 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	KmCao = 1.3;																		// [mM]
 	KmNai = 12.29;																		// [mM]
 	KmNao = 87.5;																		// [mM]
-	ksat = 0.27;																		// [none]  
+	ksat = 0.27;																		// [none]
 	nu = 0.35;																			// [none]
-	Kdact = 0.256e-3;																	// [mM] 
+	Kdact = 0.256e-3;																	// [mM]
 	Q10NCX = 1.57;																		// [none]
 	IbarSLCaP = 0.0673;																	// [uA/uF]
-	KmPCa = 0.5e-3;																		// [mM] 
-	GCaB = 2.513e-4;																	// [uA/uF] 
+	KmPCa = 0.5e-3;																		// [mM]
+	GCaB = 2.513e-4;																	// [uA/uF]
 	Q10SLCaP = 2.35;																	// [none]
 
 	// SR flux parameters
@@ -634,48 +634,48 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	Kmf = 0.246e-3;																		// [mM]
 	Kmr = 1.7;																			// [mM]L cytosol
 	hillSRCaP = 1.787;																	// [mM]
-	ks = 25;																			// [1/ms]      
-	koCa = 10;																			// [mM^-2 1/ms]      
-	kom = 0.06;																			// [1/ms]     
+	ks = 25;																			// [1/ms]
+	koCa = 10;																			// [mM^-2 1/ms]
+	kom = 0.06;																			// [1/ms]
 	kiCa = 0.5;																			// [1/mM/ms]
 	kim = 0.005;																		// [1/ms]
 	ec50SR = 0.45;																		// [mM]
 
 	// Buffering parameters
-	Bmax_Naj = 7.561;																	// [mM] 
+	Bmax_Naj = 7.561;																	// [mM]
 	Bmax_Nasl = 1.65;																	// [mM]
 	koff_na = 1e-3;																		// [1/ms]
 	kon_na = 0.1e-3;																	// [1/mM/ms]
 	Bmax_TnClow = 70e-3;																// [mM], TnC low affinity
-	koff_tncl = 19.6e-3;																// [1/ms] 
+	koff_tncl = 19.6e-3;																// [1/ms]
 	kon_tncl = 32.7;																	// [1/mM/ms]
-	Bmax_TnChigh = 140e-3;																// [mM], TnC high affinity 
-	koff_tnchca = 0.032e-3;																// [1/ms] 
+	Bmax_TnChigh = 140e-3;																// [mM], TnC high affinity
+	koff_tnchca = 0.032e-3;																// [1/ms]
 	kon_tnchca = 2.37;																	// [1/mM/ms]
-	koff_tnchmg = 3.33e-3;																// [1/ms] 
+	koff_tnchmg = 3.33e-3;																// [1/ms]
 	kon_tnchmg = 3e-3;																	// [1/mM/ms]
 	// Bmax_CaM = 24e-3;																	// [mM], CaM buffering
-	// koff_cam = 238e-3;																	// [1/ms] 
+	// koff_cam = 238e-3;																	// [1/ms]
 	// kon_cam = 34;																		// [1/mM/ms]
 	Bmax_myosin = 140e-3;																// [mM], Myosin buffering
 	koff_myoca = 0.46e-3;																// [1/ms]
 	kon_myoca = 13.8;																	// [1/mM/ms]
 	koff_myomg = 0.057e-3;																// [1/ms]
 	kon_myomg = 0.0157;																	// [1/mM/ms]
-	Bmax_SR = 19*0.9e-3;																	// [mM] 
+	Bmax_SR = 19*0.9e-3;																	// [mM]
 	koff_sr = 60e-3;																	// [1/ms]
 	kon_sr = 100;																		// [1/mM/ms]
 	Bmax_SLlowsl = 37.38e-3*Vmyo/Vsl;													// [mM], SL buffering
-	Bmax_SLlowj = 4.62e-3*Vmyo/Vjunc*0.1;												// [mM]    
+	Bmax_SLlowj = 4.62e-3*Vmyo/Vjunc*0.1;												// [mM]
 	koff_sll = 1300e-3;																	// [1/ms]
 	kon_sll = 100;																		// [1/mM/ms]
-	Bmax_SLhighsl = 13.35e-3*Vmyo/Vsl;													// [mM] 
-	Bmax_SLhighj = 1.65e-3*Vmyo/Vjunc*0.1;												// [mM] 
+	Bmax_SLhighsl = 13.35e-3*Vmyo/Vsl;													// [mM]
+	Bmax_SLhighj = 1.65e-3*Vmyo/Vjunc*0.1;												// [mM]
 	koff_slh = 30e-3;																	// [1/ms]
 	kon_slh = 100;																		// [1/mM/ms]
-	Bmax_Csqn = 2.7;																	// 140e-3*Vmyo/Vsr; [mM] 
-	koff_csqn = 65;																		// [1/ms] 
-	kon_csqn = 100;																		// [1/mM/ms] 
+	Bmax_Csqn = 2.7;																	// 140e-3*Vmyo/Vsr; [mM]
+	koff_csqn = 65;																		// [1/ms]
+	kon_csqn = 100;																		// [1/mM/ms]
 
 	// I_Na: Fast Na Current
 	am = 0.32*(d_initvalu_39+47.13)/(1-exp(-0.1*(d_initvalu_39+47.13)));
@@ -719,13 +719,13 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	I_kr = gkr*d_initvalu_12*rkr*(d_initvalu_39-ek);
 
 	// I_ks: Slowly Activating K Current
-	pcaks_junc = -log10(d_initvalu_36)+3.0; 
-	pcaks_sl = -log10(d_initvalu_37)+3.0;  
+	pcaks_junc = -log10(d_initvalu_36)+3.0;
+	pcaks_sl = -log10(d_initvalu_37)+3.0;
 	gks_junc = 0.07*(0.057 +0.19/(1+ exp((-7.2+pcaks_junc)/0.6)));
-	gks_sl = 0.07*(0.057 +0.19/(1+ exp((-7.2+pcaks_sl)/0.6))); 
-	eks = (1/FoRT)*log((Ko+pNaK*Nao)/(d_initvalu_35+pNaK*d_initvalu_34));	
+	gks_sl = 0.07*(0.057 +0.19/(1+ exp((-7.2+pcaks_sl)/0.6)));
+	eks = (1/FoRT)*log((Ko+pNaK*Nao)/(d_initvalu_35+pNaK*d_initvalu_34));
 	xsss = 1/(1+exp(-(d_initvalu_39-1.5)/16.7));
-	tauxs = 1/(7.19e-5*(d_initvalu_39+30)/(1-exp(-0.148*(d_initvalu_39+30)))+1.31e-4*(d_initvalu_39+30)/(exp(0.0687*(d_initvalu_39+30))-1)); 
+	tauxs = 1/(7.19e-5*(d_initvalu_39+30)/(1-exp(-0.148*(d_initvalu_39+30)))+1.31e-4*(d_initvalu_39+30)/(exp(0.0687*(d_initvalu_39+30))-1));
 	d_finavalu[offset_13] = (xsss-d_initvalu_13)/tauxs;
 	I_ks_junc = Fjunc*gks_junc*pow(d_initvalu_12,2)*(d_initvalu_39-eks);
 	I_ks_sl = Fsl*gks_sl*pow(d_initvalu_13,2)*(d_initvalu_39-eks);
@@ -743,10 +743,10 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	rtoss = 1/(1+exp((d_initvalu_39+33.5)/10));
 	tauxtos = 9/(1+exp((d_initvalu_39+3.0)/15))+0.5;
 	tauytos = 3e3/(1+exp((d_initvalu_39+60.0)/10))+30;
-	taurtos = 2800/(1+exp((d_initvalu_39+60.0)/10))+220; 
+	taurtos = 2800/(1+exp((d_initvalu_39+60.0)/10))+220;
 	d_finavalu[offset_8] = (xtoss-d_initvalu_8)/tauxtos;
 	d_finavalu[offset_9] = (ytoss-d_initvalu_9)/tauytos;
-	d_finavalu[offset_40]= (rtoss-d_initvalu_40)/taurtos; 
+	d_finavalu[offset_40]= (rtoss-d_initvalu_40)/taurtos;
 	I_tos = GtoSlow*d_initvalu_8*(d_initvalu_9+0.5*d_initvalu_40)*(d_initvalu_39-ek);									// [uA/uF]
 
 	//
@@ -776,7 +776,7 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	tauf = 1/(0.0197*exp(-pow(0.0337*(d_initvalu_39+14.5),2))+0.02);
 	d_finavalu[offset_4] = (dss-d_initvalu_4)/taud;
 	d_finavalu[offset_5] = (fss-d_initvalu_5)/tauf;
-	d_finavalu[offset_6] = 1.7*d_initvalu_36*(1-d_initvalu_6)-11.9e-3*d_initvalu_6;											// fCa_junc  
+	d_finavalu[offset_6] = 1.7*d_initvalu_36*(1-d_initvalu_6)-11.9e-3*d_initvalu_6;											// fCa_junc
 	d_finavalu[offset_7] = 1.7*d_initvalu_37*(1-d_initvalu_7)-11.9e-3*d_initvalu_7;											// fCa_sl
 
 	//
@@ -810,8 +810,8 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	d_finavalu[offset_45]=2*I_ncx*Cmem/(Vmyo*2*Frdy)*1e3;
 
 	// I_pca: Sarcolemmal Ca Pump Current
-	I_pca_junc = Fjunc*pow(Q10SLCaP,Qpow)*IbarSLCaP*pow(d_initvalu_36,fp(1.6))/(pow(KmPCa,fp(1.6))+pow(d_initvalu_36,fp(1.6)));
-	I_pca_sl = Fsl*pow(Q10SLCaP,Qpow)*IbarSLCaP*pow(d_initvalu_37,fp(1.6))/(pow(KmPCa,fp(1.6))+pow(d_initvalu_37,fp(1.6)));
+	I_pca_junc = Fjunc*pow(Q10SLCaP,Qpow)*IbarSLCaP*pow(d_initvalu_36,float(1.6))/(pow(KmPCa,float(1.6))+pow(d_initvalu_36,float(1.6)));
+	I_pca_sl = Fsl*pow(Q10SLCaP,Qpow)*IbarSLCaP*pow(d_initvalu_37,float(1.6))/(pow(KmPCa,float(1.6))+pow(d_initvalu_37,float(1.6)));
 	I_pca = I_pca_junc+I_pca_sl;
 	d_finavalu[offset_44]=-I_pca*Cmem/(Vmyo*2*Frdy)*1e3;
 
@@ -820,11 +820,11 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	I_cabk_sl = Fsl*GCaB*(d_initvalu_39-eca_sl);
 	I_cabk = I_cabk_junc+I_cabk_sl;
 	d_finavalu[offset_46]=-I_cabk*Cmem/(Vmyo*2*Frdy)*1e3;
-	
-	// SR fluxes: Calcium Release, SR Ca pump, SR Ca leak														
-	MaxSR = 15; 
+
+	// SR fluxes: Calcium Release, SR Ca pump, SR Ca leak
+	MaxSR = 15;
 	MinSR = 1;
-	kCaSR = MaxSR - (MaxSR-MinSR)/(1+pow(ec50SR/d_initvalu_31,fp(2.5)));
+	kCaSR = MaxSR - (MaxSR-MinSR)/(1+pow(ec50SR/d_initvalu_31,float(2.5)));
 	koSRCa = koCa/kCaSR;
 	kiSRCa = kiCa*kCaSR;
 	RI = 1-d_initvalu_14-d_initvalu_15-d_initvalu_16;
@@ -836,7 +836,7 @@ __device__ void kernel_ecc_2(	fp timeinst,
 										 /(1+pow((d_initvalu_38/Kmf),hillSRCaP)+pow((d_initvalu_31/Kmr),hillSRCaP));
 	J_SRleak = 5.348e-6*(d_initvalu_31-d_initvalu_36);													//   [mM/ms]
 
-	// Sodium and Calcium Buffering														
+	// Sodium and Calcium Buffering
 	d_finavalu[offset_17] = kon_na*d_initvalu_32*(Bmax_Naj-d_initvalu_17)-koff_na*d_initvalu_17;								// NaBj      [mM/ms]
 	d_finavalu[offset_18] = kon_na*d_initvalu_33*(Bmax_Nasl-d_initvalu_18)-koff_na*d_initvalu_18;							// NaBsl     [mM/ms]
 
@@ -869,7 +869,7 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	d_finavalu[offset_32] = -I_Na_tot_junc*Cmem/(Vjunc*Frdy)+J_na_juncsl/Vjunc*(d_initvalu_33-d_initvalu_32)-d_finavalu[offset_17];
 	oneovervsl = 1/Vsl;
 	d_finavalu[offset_33] = -I_Na_tot_sl*Cmem*oneovervsl/Frdy+J_na_juncsl*oneovervsl*(d_initvalu_32-d_initvalu_33)+J_na_slmyo*oneovervsl*(d_initvalu_34-d_initvalu_33)-d_finavalu[offset_18];
-	d_finavalu[offset_34] = J_na_slmyo/Vmyo*(d_initvalu_33-d_initvalu_34);											// [mM/msec] 
+	d_finavalu[offset_34] = J_na_slmyo/Vmyo*(d_initvalu_33-d_initvalu_34);											// [mM/msec]
 
 	// Potassium Concentration
 	I_K_tot = I_to+I_kr+I_ks+I_ki-2*I_nak+I_CaK+I_kp;									// [uA/uF]
@@ -888,8 +888,8 @@ __device__ void kernel_ecc_2(	fp timeinst,
 	// sl_myo=J_ca_slmyo/Vsl*(d_initvalu_38-d_initvalu_37);
 	// myo_sl=J_ca_slmyo/Vmyo*(d_initvalu_37-d_initvalu_38);
 
-	// Simulation type													
-	state = 1;																			
+	// Simulation type
+	state = 1;
 	switch(state){
 		case 0:
 			I_app = 0;
@@ -902,7 +902,7 @@ __device__ void kernel_ecc_2(	fp timeinst,
 				I_app = 0.0;
 			}
 			break;
-		case 2:     
+		case 2:
 			V_hold = -55;
 			V_test = 0;
 			if(timeinst>0.5 & timeinst<200.5){
@@ -914,9 +914,9 @@ __device__ void kernel_ecc_2(	fp timeinst,
 			R_clamp = 0.04;
 			I_app = (V_clamp-d_initvalu_39)/R_clamp;
 			break;
-	} 
+	}
 
-	// Membrane Potential												
+	// Membrane Potential
 	I_Na_tot = I_Na_tot_junc + I_Na_tot_sl;												// [uA/uF]
 	I_Cl_tot = I_ClCa+I_Clbk;															// [uA/uF]
 	I_Ca_tot = I_Ca_tot_junc+I_Ca_tot_sl;

@@ -5,10 +5,10 @@
 //===============================================================================================================================================================================================================
 
 __global__ void kernel(	int timeinst,
-										fp* d_initvalu,
-										fp* d_finavalu,
-										fp* d_params,
-										fp* d_com){
+										float* d_initvalu,
+										float* d_finavalu,
+										float* d_params,
+										float* d_com){
 
 	//======================================================================================================================================================
 	// 	VARIABLES
@@ -24,9 +24,9 @@ __global__ void kernel(	int timeinst,
 	int com_offset;																	// kernel1-kernel2 communication offset
 
 	// module parameters
-	fp CaDyad;																			// from ECC model, *** Converting from [mM] to [uM] ***
-	fp CaSL;																				// from ECC model, *** Converting from [mM] to [uM] ***
-	fp CaCyt;																			// from ECC model, *** Converting from [mM] to [uM] ***
+	float CaDyad;																			// from ECC model, *** Converting from [mM] to [uM] ***
+	float CaSL;																				// from ECC model, *** Converting from [mM] to [uM] ***
+	float CaCyt;																			// from ECC model, *** Converting from [mM] to [uM] ***
 
 	//======================================================================================================================================================
 	// 	COMPUTATION

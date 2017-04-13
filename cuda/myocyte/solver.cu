@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-// int solver( fp (*f)(fp, fp), fp y[],        //
-//       fp x, fp h, fp xmax, fp *h_next, fp tolerance )  //
+// int solver( float (*f)(float, float), float y[],        //
+//       float x, float h, float xmax, float *h_next, float tolerance )  //
 //                                                                            //
 //  Description:                                                              //
 //     This function solves the differential equation y'=f(x,y) with the      //
@@ -8,18 +8,18 @@
 //     The function returns 0 if successful or -1 if it fails.                //
 //                                                                            //
 //  Arguments:                                                                //
-//     fp *f  Pointer to the function which returns the slope at (x,y) of //
+//     float *f  Pointer to the function which returns the slope at (x,y) of //
 //                integral curve of the differential equation y' = f(x,y)     //
 //                which passes through the point (x0,y0) corresponding to the //
 //                initial condition y(x0) = y0.                               //
-//     fp y[] On input y[0] is the initial value of y at x, on output     //
+//     float y[] On input y[0] is the initial value of y at x, on output     //
 //                y[1] is the solution at xmax.                               //
-//     fp x   The initial value of x.                                     //
-//     fp h   Initial step size.                                          //
-//     fp xmax The endpoint of x.                                         //
-//     fp *h_next   A pointer to the estimated step size for successive   //
+//     float x   The initial value of x.                                     //
+//     float h   Initial step size.                                          //
+//     float xmax The endpoint of x.                                         //
+//     float *h_next   A pointer to the estimated step size for successive   //
 //                      calls to solver.                       //
-//     fp tolerance The tolerance of y(xmax), i.e. a solution is sought   //
+//     float tolerance The tolerance of y(xmax), i.e. a solution is sought   //
 //                so that the relative error < tolerance.                     //
 //                                                                            //
 //  Return Values:                                                            //
@@ -70,223 +70,223 @@
 //======================================================================================================================================================
 //======================================================================================================================================================
 
-int solver(	fp** y,
-					fp* x,
-					int xmax,
-					fp* params,
-					fp* com,
+int solver(	float** y,
+    float* x,
+    int xmax,
+    float* params,
+    float* com,
 
-					fp* d_initvalu,
-					fp* d_finavalu,
-					fp* d_params,
-					fp* d_com) {
+    float* d_initvalu,
+    float* d_finavalu,
+    float* d_params,
+    float* d_com, bool unified) {
 
-	//========================================================================================================================
-	//	VARIABLES
-	//========================================================================================================================
+  //========================================================================================================================
+  //	VARIABLES
+  //========================================================================================================================
 
-	// solver parameters
-	fp err_exponent;
-	int error;
-	int outside;
-	fp h;
-	fp h_init;
-	fp tolerance;
-	int xmin;
+  // solver parameters
+  float err_exponent;
+  int error;
+  int outside;
+  float h;
+  float h_init;
+  float tolerance;
+  int xmin;
 
-	// memory
-	fp scale_min;
-	fp scale_fina;
-	fp* err= (fp *) malloc(EQUATIONS* sizeof(fp));
-	fp* scale= (fp *) malloc(EQUATIONS* sizeof(fp));
-	fp* yy= (fp *) malloc(EQUATIONS* sizeof(fp));
+  // memory
+  float scale_min;
+  float scale_fina;
+  float* err= (float *) malloc(EQUATIONS* sizeof(float));
+  float* scale= (float *) malloc(EQUATIONS* sizeof(float));
+  float* yy= (float *) malloc(EQUATIONS* sizeof(float));
 
-	// counters
-	int i, j, k;
+  // counters
+  int i, j, k;
 
-	//========================================================================================================================
-	//		INITIAL SETUP
-	//========================================================================================================================
+  //========================================================================================================================
+  //		INITIAL SETUP
+  //========================================================================================================================
 
-	// solver parameters
-	err_exponent = 1.0 / 7.0;
-	h_init = 1;
-	h = h_init;
-	xmin = 0;
-	tolerance = 10 / (fp)(xmax-xmin);
+  // solver parameters
+  err_exponent = 1.0 / 7.0;
+  h_init = 1;
+  h = h_init;
+  xmin = 0;
+  tolerance = 10 / (float)(xmax-xmin);
 
-	// save value for initial time instance
-	x[0] = 0;
+  // save value for initial time instance
+  x[0] = 0;
 
-	//========================================================================================================================
-	//		CHECKING
-	//========================================================================================================================
+  //========================================================================================================================
+  //		CHECKING
+  //========================================================================================================================
 
-	// Verify that the step size is positive and that the upper endpoint of integration is greater than the initial enpoint.               //
-	if (xmax < xmin || h <= 0.0){
-		return -2;
-	}
+  // Verify that the step size is positive and that the upper endpoint of integration is greater than the initial enpoint.               //
+  if (xmax < xmin || h <= 0.0){
+    return -2;
+  }
 
-	// If the upper endpoint of the independent variable agrees with the initial value of the independent variable.  Set the value of the dependent variable and return success. //
-	if (xmax == xmin){
-		return 0; 
-	}
+  // If the upper endpoint of the independent variable agrees with the initial value of the independent variable.  Set the value of the dependent variable and return success. //
+  if (xmax == xmin){
+    return 0;
+  }
 
-	// Insure that the step size h is not larger than the length of the integration interval.                                            //
-	if (h > (xmax - xmin) ) { 
-		h = (fp)xmax - (fp)xmin; 
-	}
+  // Insure that the step size h is not larger than the length of the integration interval.                                            //
+  if (h > (xmax - xmin) ) {
+    h = (float)xmax - (float)xmin;
+  }
 
-	//========================================================================================================================
-	//		SOLVING
-	//========================================================================================================================
+  //========================================================================================================================
+  //		SOLVING
+  //========================================================================================================================
 
-	for(k=1; k<=xmax; k++) {											// start after initial value
+  for(k=1; k<=xmax; k++) {											// start after initial value
 
-		x[k] = k-1;
-		h = h_init;
+    x[k] = k-1;
+    h = h_init;
 
-		//==========================================================================================
-		//		REINITIALIZE VARIABLES
-		//==========================================================================================
+    //==========================================================================================
+    //		REINITIALIZE VARIABLES
+    //==========================================================================================
 
-		scale_fina = 1.0;
+    scale_fina = 1.0;
 
-		//==========================================================================================
-		//		MAKE ATTEMPTS TO MINIMIZE ERROR
-		//==========================================================================================
+    //==========================================================================================
+    //		MAKE ATTEMPTS TO MINIMIZE ERROR
+    //==========================================================================================
 
-		// make attempts to minimize error
-		for (j = 0; j < ATTEMPTS; j++) {
+    // make attempts to minimize error
+    for (j = 0; j < ATTEMPTS; j++) {
 
-			//============================================================
-			//		REINITIALIZE VARIABLES
-			//============================================================
+      //============================================================
+      //		REINITIALIZE VARIABLES
+      //============================================================
 
-			error = 0;
-			outside = 0;
-			scale_min = MAX_SCALE_FACTOR;
+      error = 0;
+      outside = 0;
+      scale_min = MAX_SCALE_FACTOR;
 
-			//============================================================
-			//		EVALUATE ALL EQUATIONS
-			//============================================================
+      //============================================================
+      //		EVALUATE ALL EQUATIONS
+      //============================================================
 
-			embedded_fehlberg_7_8(	x[k],
-														h,
-														y[k-1],
-														y[k],
-														err,
-														params,
-														com,
+      embedded_fehlberg_7_8(	x[k],
+          h,
+          y[k-1],
+          y[k],
+          err,
+          params,
+          com,
 
-														d_initvalu,
-														d_finavalu,
-														d_params,
-														d_com);
+          d_initvalu,
+          d_finavalu,
+          d_params,
+          d_com, unified);
 
-			//============================================================
-			//		IF THERE WAS NO ERROR FOR ANY OF EQUATIONS, SET SCALE AND LEAVE THE LOOP
-			//============================================================
+      //============================================================
+      //		IF THERE WAS NO ERROR FOR ANY OF EQUATIONS, SET SCALE AND LEAVE THE LOOP
+      //============================================================
 
-			for(i=0; i<EQUATIONS; i++){
-				if(err[i] > 0){
-					error = 1;
-				}
-			}
-			if (error != 1) {
-				scale_fina = MAX_SCALE_FACTOR; 
-				break;
-			}
+      for(i=0; i<EQUATIONS; i++){
+        if(err[i] > 0){
+          error = 1;
+        }
+      }
+      if (error != 1) {
+        scale_fina = MAX_SCALE_FACTOR;
+        break;
+      }
 
-			//============================================================
-			//		FIGURE OUT SCALE AS THE MINIMUM OF COMPONENT SCALES
-			//============================================================
+      //============================================================
+      //		FIGURE OUT SCALE AS THE MINIMUM OF COMPONENT SCALES
+      //============================================================
 
-			for(i=0; i<EQUATIONS; i++){
-				if(y[k-1][i] == 0.0){
-					yy[i] = tolerance;
-				}
-				else{
-					yy[i] = fabs(y[k-1][i]);
-				}
-				scale[i] = 0.8 * pow( tolerance * yy[i] / err[i] , err_exponent );
-				if(scale[i]<scale_min){
-					scale_min = scale[i];
-				}
-			}
-			scale_fina = min( max(scale_min,MIN_SCALE_FACTOR), MAX_SCALE_FACTOR);
+      for(i=0; i<EQUATIONS; i++){
+        if(y[k-1][i] == 0.0){
+          yy[i] = tolerance;
+        }
+        else{
+          yy[i] = fabs(y[k-1][i]);
+        }
+        scale[i] = 0.8 * pow( tolerance * yy[i] / err[i] , err_exponent );
+        if(scale[i]<scale_min){
+          scale_min = scale[i];
+        }
+      }
+      scale_fina = min( max(scale_min,MIN_SCALE_FACTOR), MAX_SCALE_FACTOR);
 
-			//============================================================
-			//		IF WITHIN TOLERANCE, FINISH ATTEMPTS...
-			//============================================================
+      //============================================================
+      //		IF WITHIN TOLERANCE, FINISH ATTEMPTS...
+      //============================================================
 
-			for(i=0; i<EQUATIONS; i++){
-				if ( err[i] > ( tolerance * yy[i] ) ){
-					outside = 1;
-				}
-			}
-			if (outside == 0){
-				break;
-			}
+      for(i=0; i<EQUATIONS; i++){
+        if ( err[i] > ( tolerance * yy[i] ) ){
+          outside = 1;
+        }
+      }
+      if (outside == 0){
+        break;
+      }
 
-			//============================================================
-			//		...OTHERWISE, ADJUST STEP FOR NEXT ATTEMPT
-			//============================================================
+      //============================================================
+      //		...OTHERWISE, ADJUST STEP FOR NEXT ATTEMPT
+      //============================================================
 
-			// scale next step in a default way
-			h = h * scale_fina;
+      // scale next step in a default way
+      h = h * scale_fina;
 
-			// limit step to 0.9, because when it gets close to 1, it no longer makes sense, as 1 is already the next time instance (added to original algorithm)
-			if (h >= 0.9) {
-				h = 0.9;
-			}
+      // limit step to 0.9, because when it gets close to 1, it no longer makes sense, as 1 is already the next time instance (added to original algorithm)
+      if (h >= 0.9) {
+        h = 0.9;
+      }
 
-			// if instance+step exceeds range limit, limit to that range
-			if ( x[k] + h > (fp)xmax ){
-				h = (fp)xmax - x[k];
-			}
+      // if instance+step exceeds range limit, limit to that range
+      if ( x[k] + h > (float)xmax ){
+        h = (float)xmax - x[k];
+      }
 
-			// if getting closer to range limit, decrease step
-			else if ( x[k] + h + 0.5 * h > (fp)xmax ){
-				h = 0.5 * h;
-			}
+      // if getting closer to range limit, decrease step
+      else if ( x[k] + h + 0.5 * h > (float)xmax ){
+        h = 0.5 * h;
+      }
 
-		}
+    }
 
-		//==========================================================================================
-		//		SAVE TIME INSTANCE THAT SOLVER ENDED UP USING
-		//==========================================================================================
+    //==========================================================================================
+    //		SAVE TIME INSTANCE THAT SOLVER ENDED UP USING
+    //==========================================================================================
 
-		x[k] = x[k] + h;
+    x[k] = x[k] + h;
 
-		//==========================================================================================
-		//		IF MAXIMUM NUMBER OF ATTEMPTS REACHED AND CANNOT GIVE SOLUTION, EXIT PROGRAM WITH ERROR
-		//==========================================================================================
+    //==========================================================================================
+    //		IF MAXIMUM NUMBER OF ATTEMPTS REACHED AND CANNOT GIVE SOLUTION, EXIT PROGRAM WITH ERROR
+    //==========================================================================================
 
-		if ( j >= ATTEMPTS ) {
-			return -1; 
-		}
+    if ( j >= ATTEMPTS ) {
+      return -1;
+    }
 
-	}
+  }
 
-	//========================================================================================================================
-	//		FREE MEMORY
-	//========================================================================================================================
+  //========================================================================================================================
+  //		FREE MEMORY
+  //========================================================================================================================
 
-	free(err);
-	free(scale);
-	free(yy);
+  free(err);
+  free(scale);
+  free(yy);
 
-	//========================================================================================================================
-	//		FINAL RETURN
-	//========================================================================================================================
+  //========================================================================================================================
+  //		FINAL RETURN
+  //========================================================================================================================
 
-	return 0;
+  return 0;
 
-//======================================================================================================================================================
-//======================================================================================================================================================
-//		END OF SOLVER FUNCTION
-//======================================================================================================================================================
-//======================================================================================================================================================
+  //======================================================================================================================================================
+  //======================================================================================================================================================
+  //		END OF SOLVER FUNCTION
+  //======================================================================================================================================================
+  //======================================================================================================================================================
 
-} 
+}

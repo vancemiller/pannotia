@@ -1,28 +1,28 @@
 //=====================================================================
 //	MAIN FUNCTION
 //=====================================================================
-__device__ void kernel_cam(	fp timeinst,
-												fp* d_initvalu,
-												fp *d_finavalu,
+__device__ void kernel_cam(	float timeinst,
+												float* d_initvalu,
+												float *d_finavalu,
 												int valu_offset,
-												fp* d_params,
+												float* d_params,
 												int params_offset,
-												fp* d_com,
+												float* d_com,
 												int com_offset,
-												fp Ca){
+												float Ca){
 
 	//=====================================================================
 	//	VARIABLES
 	//=====================================================================
 
 	// inputs
-	// fp CaMtot;
-	fp Btot;
-	fp CaMKIItot;
-	fp CaNtot;
-	fp PP1tot;
-	fp K;
-	fp Mg;
+	// float CaMtot;
+	float Btot;
+	float CaMKIItot;
+	float CaNtot;
+	float PP1tot;
+	float K;
+	float Mg;
 
 	// variable references
 	int offset_1;
@@ -42,132 +42,132 @@ __device__ void kernel_cam(	fp timeinst,
 	int offset_15;
 
 	// decoding input array
-	fp CaM;
-	fp Ca2CaM;
-	fp Ca4CaM;
-	fp CaMB;
-	fp Ca2CaMB;
-	fp Ca4CaMB;           
-	fp Pb2;
-	fp Pb;
-	fp Pt;
-	fp Pt2;
-	fp Pa;                            
-	fp Ca4CaN;
-	fp CaMCa4CaN;
-	fp Ca2CaMCa4CaN;
-	fp Ca4CaMCa4CaN;
+	float CaM;
+	float Ca2CaM;
+	float Ca4CaM;
+	float CaMB;
+	float Ca2CaMB;
+	float Ca4CaMB;
+	float Pb2;
+	float Pb;
+	float Pt;
+	float Pt2;
+	float Pa;
+	float Ca4CaN;
+	float CaMCa4CaN;
+	float Ca2CaMCa4CaN;
+	float Ca4CaMCa4CaN;
 
 	// Ca/CaM parameters
-	fp Kd02;																		// [uM^2]
-	fp Kd24;																		// [uM^2]
-	fp k20;																			// [s^-1]      
-	fp k02;																			// [uM^-2 s^-1]
-	fp k42;																			// [s^-1]      
-	fp k24;																			// [uM^-2 s^-1]
+	float Kd02;																		// [uM^2]
+	float Kd24;																		// [uM^2]
+	float k20;																			// [s^-1]
+	float k02;																			// [uM^-2 s^-1]
+	float k42;																			// [s^-1]
+	float k24;																			// [uM^-2 s^-1]
 
 	// CaM buffering (B) parameters
-	fp k0Boff;																		// [s^-1] 
-	fp k0Bon;																		// [uM^-1 s^-1] kon = koff/Kd
-	fp k2Boff;																		// [s^-1] 
-	fp k2Bon;																		// [uM^-1 s^-1]
-	fp k4Boff;																		// [s^-1]
-	fp k4Bon;																		// [uM^-1 s^-1]
+	float k0Boff;																		// [s^-1]
+	float k0Bon;																		// [uM^-1 s^-1] kon = koff/Kd
+	float k2Boff;																		// [s^-1]
+	float k2Bon;																		// [uM^-1 s^-1]
+	float k4Boff;																		// [s^-1]
+	float k4Bon;																		// [uM^-1 s^-1]
 
 	// using thermodynamic constraints
-	fp k20B;																		// [s^-1] thermo constraint on loop 1
-	fp k02B;																		// [uM^-2 s^-1] 
-	fp k42B;																		// [s^-1] thermo constraint on loop 2
-	fp k24B;																		// [uM^-2 s^-1]
+	float k20B;																		// [s^-1] thermo constraint on loop 1
+	float k02B;																		// [uM^-2 s^-1]
+	float k42B;																		// [s^-1] thermo constraint on loop 2
+	float k24B;																		// [uM^-2 s^-1]
 
 	// Wi Wa Wt Wp
-	fp kbi;																			// [s^-1] (Ca4CaM dissocation from Wb)
-	fp kib;																			// [uM^-1 s^-1]
-	fp kpp1;																		// [s^-1] (PP1-dep dephosphorylation rates)
-	fp Kmpp1;																		// [uM]
-	fp kib2;
-	fp kb2i;
-	fp kb24;
-	fp kb42;
-	fp kta;																			// [s^-1] (Ca4CaM dissociation from Wt)
-	fp kat;																			// [uM^-1 s^-1] (Ca4CaM reassociation with Wa)
-	fp kt42;
-	fp kt24;
-	fp kat2;
-	fp kt2a;
+	float kbi;																			// [s^-1] (Ca4CaM dissocation from Wb)
+	float kib;																			// [uM^-1 s^-1]
+	float kpp1;																		// [s^-1] (PP1-dep dephosphorylation rates)
+	float Kmpp1;																		// [uM]
+	float kib2;
+	float kb2i;
+	float kb24;
+	float kb42;
+	float kta;																			// [s^-1] (Ca4CaM dissociation from Wt)
+	float kat;																			// [uM^-1 s^-1] (Ca4CaM reassociation with Wa)
+	float kt42;
+	float kt24;
+	float kat2;
+	float kt2a;
 
 	// CaN parameters
-	fp kcanCaoff;																	// [s^-1] 
-	fp kcanCaon;																	// [uM^-1 s^-1] 
-	fp kcanCaM4on;																	// [uM^-1 s^-1]
-	fp kcanCaM4off;																	// [s^-1]
-	fp kcanCaM2on;
-	fp kcanCaM2off;
-	fp kcanCaM0on;
-	fp kcanCaM0off;
-	fp k02can;
-	fp k20can;
-	fp k24can;
-	fp k42can;
+	float kcanCaoff;																	// [s^-1]
+	float kcanCaon;																	// [uM^-1 s^-1]
+	float kcanCaM4on;																	// [uM^-1 s^-1]
+	float kcanCaM4off;																	// [s^-1]
+	float kcanCaM2on;
+	float kcanCaM2off;
+	float kcanCaM0on;
+	float kcanCaM0off;
+	float k02can;
+	float k20can;
+	float k24can;
+	float k42can;
 
 	// CaM Reaction fluxes
-	fp rcn02;
-	fp rcn24;
+	float rcn02;
+	float rcn24;
 
 	// CaM buffer fluxes
-	fp B;
-	fp rcn02B;
-	fp rcn24B;
-	fp rcn0B;
-	fp rcn2B;
-	fp rcn4B;
+	float B;
+	float rcn02B;
+	float rcn24B;
+	float rcn0B;
+	float rcn2B;
+	float rcn4B;
 
-	// CaN reaction fluxes 
-	fp Ca2CaN;
-	fp rcnCa4CaN;
-	fp rcn02CaN; 
-	fp rcn24CaN;
-	fp rcn0CaN;
-	fp rcn2CaN;
-	fp rcn4CaN;
+	// CaN reaction fluxes
+	float Ca2CaN;
+	float rcnCa4CaN;
+	float rcn02CaN;
+	float rcn24CaN;
+	float rcn0CaN;
+	float rcn2CaN;
+	float rcn4CaN;
 
 	// CaMKII reaction fluxes
-	fp Pix;
-	fp rcnCKib2;
-	fp rcnCKb2b;
-	fp rcnCKib;
-	fp T;
-	fp kbt;
-	fp rcnCKbt;
-	fp rcnCKtt2;
-	fp rcnCKta;
-	fp rcnCKt2a;
-	fp rcnCKt2b2;
-	fp rcnCKai;
+	float Pix;
+	float rcnCKib2;
+	float rcnCKb2b;
+	float rcnCKib;
+	float T;
+	float kbt;
+	float rcnCKbt;
+	float rcnCKtt2;
+	float rcnCKta;
+	float rcnCKt2a;
+	float rcnCKt2b2;
+	float rcnCKai;
 
 	// CaM equations
-	fp dCaM;
-	fp dCa2CaM;
-	fp dCa4CaM;
-	fp dCaMB;
-	fp dCa2CaMB;
-	fp dCa4CaMB;
+	float dCaM;
+	float dCa2CaM;
+	float dCa4CaM;
+	float dCaMB;
+	float dCa2CaMB;
+	float dCa4CaMB;
 
 	// CaMKII equations
-	fp dPb2;																					// Pb2
-	fp dPb;																					// Pb
-	fp dPt;																					// Pt
-	fp dPt2;																					// Pt2
-	fp dPa;																					// Pa
+	float dPb2;																					// Pb2
+	float dPb;																					// Pb
+	float dPt;																					// Pt
+	float dPt2;																					// Pt2
+	float dPa;																					// Pa
 
 	// CaN equations
-	fp dCa4CaN;																			// Ca4CaN
-	fp dCaMCa4CaN;																	// CaMCa4CaN
-	fp dCa2CaMCa4CaN;																// Ca2CaMCa4CaN
-	fp dCa4CaMCa4CaN;																// Ca4CaMCa4CaN
+	float dCa4CaN;																			// Ca4CaN
+	float dCaMCa4CaN;																	// CaMCa4CaN
+	float dCa2CaMCa4CaN;																// Ca2CaMCa4CaN
+	float dCa4CaMCa4CaN;																// Ca4CaMCa4CaN
 
 	//=====================================================================
-	//	EXECUTION													
+	//	EXECUTION
 	//=====================================================================
 
 	// inputs
@@ -202,12 +202,12 @@ __device__ void kernel_cam(	fp timeinst,
 	Ca4CaM			= d_initvalu[offset_3];
 	CaMB			= d_initvalu[offset_4];
 	Ca2CaMB			= d_initvalu[offset_5];
-	Ca4CaMB			= d_initvalu[offset_6];           
+	Ca4CaMB			= d_initvalu[offset_6];
 	Pb2				= d_initvalu[offset_7];
 	Pb				= d_initvalu[offset_8];
 	Pt				= d_initvalu[offset_9];
 	Pt2				= d_initvalu[offset_10];
-	Pa				= d_initvalu[offset_11];                            
+	Pa				= d_initvalu[offset_11];
 	Ca4CaN			= d_initvalu[offset_12];
 	CaMCa4CaN		= d_initvalu[offset_13];
 	Ca2CaMCa4CaN	= d_initvalu[offset_14];
@@ -222,22 +222,22 @@ __device__ void kernel_cam(	fp timeinst,
 		Kd02 = 0.0025*(1+K/0.94-1/0.012+(Mg-1)/0.060)*(1+K/8.1+1/0.022+(Mg-1)/0.068);   // [uM^2]
 		Kd24 = 0.128*(1+K/0.64+1/0.0014+(Mg-1)/0.005)*(1+K/13.0-1/0.153+(Mg-1)/0.150);  // [uM^2]
 	}
-	k20 = 10;																			// [s^-1]      
+	k20 = 10;																			// [s^-1]
 	k02 = k20/Kd02;																		// [uM^-2 s^-1]
-	k42 = 500;																			// [s^-1]      
+	k42 = 500;																			// [s^-1]
 	k24 = k42/Kd24;																		// [uM^-2 s^-1]
 
 	// CaM buffering (B) parameters
-	k0Boff = 0.0014;																	// [s^-1] 
+	k0Boff = 0.0014;																	// [s^-1]
 	k0Bon = k0Boff/0.2;																	// [uM^-1 s^-1] kon = koff/Kd
-	k2Boff = k0Boff/100;																// [s^-1] 
+	k2Boff = k0Boff/100;																// [s^-1]
 	k2Bon = k0Bon;																		// [uM^-1 s^-1]
 	k4Boff = k2Boff;																	// [s^-1]
 	k4Bon = k0Bon;																		// [uM^-1 s^-1]
 
 	// using thermodynamic constraints
 	k20B = k20/100;																		// [s^-1] thermo constraint on loop 1
-	k02B = k02;																			// [uM^-2 s^-1] 
+	k02B = k02;																			// [uM^-2 s^-1]
 	k42B = k42;																			// [s^-1] thermo constraint on loop 2
 	k24B = k24;																			// [uM^-2 s^-1]
 
@@ -258,8 +258,8 @@ __device__ void kernel_cam(	fp timeinst,
 	kt2a = kib*5;
 
 	// CaN parameters
-	kcanCaoff = 1;																		// [s^-1] 
-	kcanCaon = kcanCaoff/0.5;															// [uM^-1 s^-1] 
+	kcanCaoff = 1;																		// [s^-1]
+	kcanCaon = kcanCaoff/0.5;															// [uM^-1 s^-1]
 	kcanCaM4on = 46;																	// [uM^-1 s^-1]
 	kcanCaM4off = 0.0013;																// [s^-1]
 	kcanCaM2on = kcanCaM4on;
@@ -274,7 +274,7 @@ __device__ void kernel_cam(	fp timeinst,
 	// CaM Reaction fluxes
 	rcn02 = k02*pow(Ca,2)*CaM - k20*Ca2CaM;
 	rcn24 = k24*pow(Ca,2)*Ca2CaM - k42*Ca4CaM;
-	
+
 	// CaM buffer fluxes
 	B = Btot - CaMB - Ca2CaMB - Ca4CaMB;
 	rcn02B = k02B*pow(Ca,2)*CaMB - k20B*Ca2CaMB;
@@ -282,11 +282,11 @@ __device__ void kernel_cam(	fp timeinst,
 	rcn0B = k0Bon*CaM*B - k0Boff*CaMB;
 	rcn2B = k2Bon*Ca2CaM*B - k2Boff*Ca2CaMB;
 	rcn4B = k4Bon*Ca4CaM*B - k4Boff*Ca4CaMB;
-	
-	// CaN reaction fluxes 
+
+	// CaN reaction fluxes
 	Ca2CaN = CaNtot - Ca4CaN - CaMCa4CaN - Ca2CaMCa4CaN - Ca4CaMCa4CaN;
 	rcnCa4CaN = kcanCaon*pow(Ca,2)*Ca2CaN - kcanCaoff*Ca4CaN;
-	rcn02CaN = k02can*pow(Ca,2)*CaMCa4CaN - k20can*Ca2CaMCa4CaN; 
+	rcn02CaN = k02can*pow(Ca,2)*CaMCa4CaN - k20can*Ca2CaMCa4CaN;
 	rcn24CaN = k24can*pow(Ca,2)*Ca2CaMCa4CaN - k42can*Ca4CaMCa4CaN;
 	rcn0CaN = kcanCaM0on*CaM*Ca4CaN - kcanCaM0off*CaMCa4CaN;
 	rcn2CaN = kcanCaM2on*Ca2CaM*Ca4CaN - kcanCaM2off*Ca2CaMCa4CaN;
@@ -347,5 +347,5 @@ __device__ void kernel_cam(	fp timeinst,
 	// write to global variables for adjusting Ca buffering in EC coupling model
 	d_finavalu[com_offset] = 1e-3*(2*CaMKIItot*(rcnCKtt2-rcnCKb2b) - 2*(rcn02+rcn24+rcn02B+rcn24B+rcnCa4CaN+rcn02CaN+rcn24CaN)); // [uM/msec]
 	//d_finavalu[JCa] = 1; // [uM/msec]
-	
+
 }
