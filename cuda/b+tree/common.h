@@ -135,14 +135,14 @@ typedef struct node {
 	struct node * next; // Used for queue.
 } node;
 
-// 
+//
 typedef struct knode {
 	int location;
 	int indices [DEFAULT_ORDER + 1];
 	int  keys [DEFAULT_ORDER + 1];
 	bool is_leaf;
 	int num_keys;
-} knode; 
+} knode;
 
 struct list_item {
   struct list_item *pred, *next;
@@ -157,85 +157,85 @@ struct list_item {
 // Other
 //======================================================================================================================================================150
 
-void 
-list_item_init(	list_item_t *li, 
+void
+list_item_init(	list_item_t *li,
 				void *datum);
 
-void 
-list_item_delete(	list_item_t *li, 
+void
+list_item_delete(	list_item_t *li,
 					void (*datum_delete)(void *datum));
 
-void 
-list_insert_item_tail(	list_t *l, 
+void
+list_insert_item_tail(	list_t *l,
 						list_item_t *i);
 
-void 
-list_insert_item_before(list_t *l, 
-						list_item_t *next, 
+void
+list_insert_item_before(list_t *l,
+						list_item_t *next,
 						list_item_t *i);
 
-void 
-list_insert_item_after(	list_t *l, 
-						list_item_t *pred, 
+void
+list_insert_item_after(	list_t *l,
+						list_item_t *pred,
 						list_item_t *i);
 
-void 
-list_insert_item_sorted(list_t *l, 
+void
+list_insert_item_sorted(list_t *l,
 						list_item_t *i);
 
 //======================================================================================================================================================150
 // ???
 //======================================================================================================================================================150
 
-void 
+void
 list_init(	list_t *l,
 			int32_t (*compare)(const void *key, const void *with),
 			void (*datum_delete)(void *datum));
 
-void 
+void
 list_delete(list_t *l);
 
-void 
+void
 list_reset(list_t *l);
 
-void 
-list_insert_head(	list_t *l, 
+void
+list_insert_head(	list_t *l,
 					void *v);
 
-void 
-list_insert_tail(	list_t *l, 
+void
+list_insert_tail(	list_t *l,
 					void *v);
 
-void 
-list_insert_before(list_t *l, 
-					list_item_t *next, 
+void
+list_insert_before(list_t *l,
+					list_item_t *next,
 					void *v);
 
-void 
-list_insert_after(	list_t *l, 
-					list_item_t *pred, 
+void
+list_insert_after(	list_t *l,
+					list_item_t *pred,
 					void *v);
 
-void 
-list_insert_sorted(	list_t *l, 
+void
+list_insert_sorted(	list_t *l,
 					void *v);
 
-void 
-list_insert_item_head(	list_t *l, 
+void
+list_insert_item_head(	list_t *l,
 						list_item_t *i);
 
-void 
-list_remove_item(	list_t *l, 
+void
+list_remove_item(	list_t *l,
 					list_item_t *i);
 
-void 
+void
 list_remove_head(list_t *l);
 
-void 
+void
 list_remove_tail(list_t *l);
 
 list_item_t *
-list_find_item(	list_t *l, 
+list_find_item(	list_t *l,
 				void *datum);
 
 list_item_t *
@@ -245,7 +245,7 @@ list_item_t *
 list_get_tail_item(list_t *l);
 
 void *
-list_find(	list_t *l, 
+list_find(	list_t *l,
 			void *datum);
 
 void *
@@ -254,58 +254,58 @@ list_get_head(list_t *l);
 void *
 list_get_tail(list_t *l);
 
-uint32_t 
+uint32_t
 list_get_length(list_t *l);
 
-bool 
+bool
 list_is_empty(list_t *l);
 
-bool 
+bool
 list_not_empty(list_t *l);
 
-void 
-list_visit_items(	list_t *l, 
+void
+list_visit_items(	list_t *l,
 					void (*visitor)(void *v));
 
 void *
 list_item_get_datum(list_item_t *li);
 
-void 
-list_iterator_init(	list_t *l, 
+void
+list_iterator_init(	list_t *l,
 					list_iterator_t *li);
 
-void 
+void
 list_iterator_delete(list_iterator_t *li);
 
-void 
+void
 list_iterator_next(list_iterator_t *li);
 
-void 
+void
 list_iterator_prev(list_iterator_t *li);
 
 void *
 list_iterator_get_datum(list_iterator_t *li);
 
-bool 
+bool
 list_iterator_is_valid(list_iterator_t *li);
 
-void 
-list_reverse_iterator_init(	list_t *l, 
+void
+list_reverse_iterator_init(	list_t *l,
 							list_iterator_t *li);
 
-void 
+void
 list_reverse_iterator_delete(list_iterator_t *li);
 
-void 
+void
 list_reverse_iterator_next(list_iterator_t *li);
 
-void 
+void
 list_reverse_iterator_prev(list_iterator_t *li);
 
 void *
 list_reverse_iterator_get_datum(list_iterator_t *li);
 
-bool 
+bool
 list_reverse_iterator_is_valid(list_reverse_iterator_t *li);
 
 //======================================================================================================================================================150
@@ -315,149 +315,149 @@ list_reverse_iterator_is_valid(list_reverse_iterator_t *li);
 void *
 kmalloc(int size);
 
-long 
-transform_to_cuda(	node *n, 
-					bool verbose); //returns actual mem used in a long
+long
+transform_to_cuda(	node *n,
+					bool verbose, bool unified); //returns actual mem used in a long
 
-void 
+void
 usage_1( void );
 
-void 
+void
 usage_2( void );
 
-void 
+void
 enqueue( node * new_node );
 
-node * 
+node *
 dequeue( void );
 
-int 
+int
 height( node * root );
 
-int 
-path_to_root(	node * root, 
+int
+path_to_root(	node * root,
 				node * child );
 
-void 
+void
 print_leaves( node * root );
 
-void 
+void
 print_tree( node * root );
 
-node * 
-find_leaf(	node * root, 
-			int key, 
+node *
+find_leaf(	node * root,
+			int key,
 			bool verbose );
 
-record * 
-find(	node * root, 
-		int key, 
+record *
+find(	node * root,
+		int key,
 		bool verbose );
 
-int 
+int
 cut( int length );
 
 //======================================================================================================================================================150
 // Insertion
 //======================================================================================================================================================150
 
-record * 
+record *
 make_record(int value);
 
-node * 
+node *
 make_node( void );
 
-node * 
+node *
 make_leaf( void );
 
-int 
-get_left_index(	node * parent, 
+int
+get_left_index(	node * parent,
 				node * left);
 
-node * 
-insert_into_leaf(	node * leaf, 
+node *
+insert_into_leaf(	node * leaf,
 					int key, record * pointer );
 
-node * 
-insert_into_leaf_after_splitting(	node * root, 
-									node * leaf, 
-									int key, 
+node *
+insert_into_leaf_after_splitting(	node * root,
+									node * leaf,
+									int key,
 									record * pointer);
 
-node * 
-insert_into_node(	node * root, 
-					node * parent, 
-					int left_index, 
-					int key, 
+node *
+insert_into_node(	node * root,
+					node * parent,
+					int left_index,
+					int key,
 					node * right);
 
-node * 
-insert_into_node_after_splitting(	node * root, 
-									node * parent, 
-									int left_index, 
-									int key, 
+node *
+insert_into_node_after_splitting(	node * root,
+									node * parent,
+									int left_index,
+									int key,
 									node * right);
 
-node * 
-insert_into_parent(	node * root, 
-					node * left, 
-					int key, 
+node *
+insert_into_parent(	node * root,
+					node * left,
+					int key,
 					node * right);
 
-node * 
-insert_into_new_root(	node * left, 
-						int key, 
+node *
+insert_into_new_root(	node * left,
+						int key,
 						node * right);
 
-node * 
-start_new_tree(	int key, 
+node *
+start_new_tree(	int key,
 				record * pointer);
 
-node * 
-insert(	node * root, 
-		int key, 
+node *
+insert(	node * root,
+		int key,
 		int value );
 
 //======================================================================================================================================================150
 // Deletion
 //======================================================================================================================================================150
 
-int 
+int
 get_neighbor_index(node * n );
 
-node * 
+node *
 adjust_root(node * root);
 
-node * 
-coalesce_nodes(	node * root, 
-				node * n, 
-				node * neighbor, 
-				int neighbor_index, 
+node *
+coalesce_nodes(	node * root,
+				node * n,
+				node * neighbor,
+				int neighbor_index,
 				int k_prime);
 
-node * 
-redistribute_nodes(	node * root, 
-					node * n, 
-					node * neighbor, 
-					int neighbor_index, 
-					int k_prime_index, 
+node *
+redistribute_nodes(	node * root,
+					node * n,
+					node * neighbor,
+					int neighbor_index,
+					int k_prime_index,
 					int k_prime);
 
-node * 
-delete_entry(	node * root, 
-				node * n, 
-				int key, 
+node *
+delete_entry(	node * root,
+				node * n,
+				int key,
 				void * pointer );
 
-node * 
-deleteVal(	node * root, 
+node *
+deleteVal(	node * root,
 			int key );
 
 //===============================================================================================================================================================================================================200
 //	HEADER
 //===============================================================================================================================================================================================================200
 
-// int main(	int argc, 
+// int main(	int argc,
 			// char *argv []);
 
 //===============================================================================================================================================================================================================200
