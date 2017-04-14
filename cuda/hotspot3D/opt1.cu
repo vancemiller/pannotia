@@ -6,14 +6,14 @@ long long get_time() {
 
 __global__ void hotspotOpt1(float *p, float* tIn, float *tOut, float sdc,
         int nx, int ny, int nz,
-        float ce, float cw, 
+        float ce, float cw,
         float cn, float cs,
-        float ct, float cb, 
-        float cc) 
+        float ct, float cb,
+        float cc)
 {
     float amb_temp = 80.0;
 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;  
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
     int j = blockDim.y * blockIdx.y + threadIdx.y;
 
     int c = i + j * nx;
@@ -56,9 +56,9 @@ __global__ void hotspotOpt1(float *p, float* tIn, float *tOut, float sdc,
 
 void hotspot_opt1(float *p, float *tIn, float *tOut,
         int nx, int ny, int nz,
-        float Cap, 
-        float Rx, float Ry, float Rz, 
-        float dt, int numiter) 
+        float Cap,
+        float Rx, float Ry, float Rz,
+        float dt, int numiter, bool unified)
 {
     float ce, cw, cn, cs, ct, cb, cc;
     float stepDivCap = dt / Cap;
@@ -68,13 +68,19 @@ void hotspot_opt1(float *p, float *tIn, float *tOut,
 
     cc = 1.0 - (2.0*ce + 2.0*cn + 3.0*ct);
 
-    size_t s = sizeof(float) * nx * ny * nz;  
+    size_t s = sizeof(float) * nx * ny * nz;
     float  *tIn_d, *tOut_d, *p_d;
-    cudaMalloc((void**)&p_d,s);
-    cudaMalloc((void**)&tIn_d,s);
-    cudaMalloc((void**)&tOut_d,s);
-    cudaMemcpy(tIn_d, tIn, s, cudaMemcpyHostToDevice);
-    cudaMemcpy(p_d, p, s, cudaMemcpyHostToDevice);
+    if (unified) {
+      p_d = p;
+      tIn_d = tIn;
+      tOut_d = tOut;
+    } else {
+      cudaMalloc((void**)&p_d,s);
+      cudaMalloc((void**)&tIn_d,s);
+      cudaMalloc((void**)&tOut_d,s);
+      cudaMemcpy(tIn_d, tIn, s, cudaMemcpyHostToDevice);
+      cudaMemcpy(p_d, p, s, cudaMemcpyHostToDevice);
+    }
 
     cudaFuncSetCacheConfig(hotspotOpt1, cudaFuncCachePreferL1);
 
@@ -93,10 +99,12 @@ void hotspot_opt1(float *p, float *tIn, float *tOut,
     long long stop = get_time();
     float time = (float)((stop - start)/(1000.0 * 1000.0));
     printf("Time: %.3f (s)\n",time);
-    cudaMemcpy(tOut, tOut_d, s, cudaMemcpyDeviceToHost);
-    cudaFree(p_d);
-    cudaFree(tIn_d);
-    cudaFree(tOut_d);
+    if (!unified) {
+      cudaMemcpy(tOut, tOut_d, s, cudaMemcpyDeviceToHost);
+      cudaFree(p_d);
+      cudaFree(tOut_d);
+      cudaFree(tIn_d);
+    }
     return;
 }
 
