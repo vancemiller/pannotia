@@ -1,16 +1,16 @@
-/* 
+/*
  * Copyright (c) 2009, Jiri Matela
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -23,7 +23,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 #include <unistd.h>
 #include <error.h>
 #include <stdio.h>
@@ -33,6 +33,7 @@
 
 #include "components.h"
 #include "common.h"
+#include "helper_cuda.h"
 
 #define THREADS 256
 
@@ -50,7 +51,7 @@ __device__ void storeComponents(int *d_r, int *d_g, int *d_b, int r, int g, int 
     d_r[pos] = r - 128;
     d_g[pos] = g - 128;
     d_b[pos] = b - 128;
-} 
+}
 
 /* Store float component */
 __device__ void storeComponent(float *d_c, float c, int pos)
@@ -66,8 +67,8 @@ __device__ void storeComponent(int *d_c, int c, int pos)
 
 /* Copy img src data into three separated component buffers */
 template<typename T>
-__global__ void c_CopySrcToComponents(T *d_r, T *d_g, T *d_b, 
-                                  unsigned char * d_src, 
+__global__ void c_CopySrcToComponents(T *d_r, T *d_g, T *d_b,
+                                  unsigned char * d_src,
                                   int pixels)
 {
     int x  = threadIdx.x;
@@ -75,8 +76,8 @@ __global__ void c_CopySrcToComponents(T *d_r, T *d_g, T *d_b,
 
     __shared__ unsigned char sData[THREADS*3];
 
-    /* Copy data to shared mem by 4bytes 
-       other checks are not necessary, since 
+    /* Copy data to shared mem by 4bytes
+       other checks are not necessary, since
        d_src buffer is aligned to sharedDataSize */
     if ( (x*4) < THREADS*3 ) {
         float *s = (float *)d_src;
@@ -107,8 +108,8 @@ __global__ void c_CopySrcToComponent(T *d_c, unsigned char * d_src, int pixels)
 
     __shared__ unsigned char sData[THREADS];
 
-    /* Copy data to shared mem by 4bytes 
-       other checks are not necessary, since 
+    /* Copy data to shared mem by 4bytes
+       other checks are not necessary, since
        d_src buffer is aligned to sharedDataSize */
     if ( (x*4) < THREADS) {
         float *s = (float *)d_src;
@@ -137,12 +138,11 @@ void rgbToComponents(T *d_r, T *d_g, T *d_b, unsigned char * src, int width, int
     int alignedSize =  DIVANDRND(width*height, THREADS) * THREADS * 3; //aligned to thread block size -- THREADS
 
     /* Alloc d_src buffer */
-    cudaMalloc((void **)&d_src, alignedSize);
-    cudaCheckAsyncError("Cuda malloc")
-    cudaMemset(d_src, 0, alignedSize);
+    checkCudaErrors(cudaMalloc((void **)&d_src, alignedSize));
+    checkCudaErrors(cudaMemset(d_src, 0, alignedSize));
 
     /* Copy data to device */
-    cudaMemcpy(d_src, src, pixels*3, cudaMemcpyHostToDevice);
+    checkCudaErrors(cudaMemcpy(d_src, src, pixels*3, cudaMemcpyHostToDevice));
     cudaCheckError("Copy data to device")
 
     /* Kernel */
@@ -150,11 +150,9 @@ void rgbToComponents(T *d_r, T *d_g, T *d_b, unsigned char * src, int width, int
     dim3 grid(alignedSize/(THREADS*3));
     assert(alignedSize%(THREADS*3) == 0);
     c_CopySrcToComponents<<<grid, threads>>>(d_r, d_g, d_b, d_src, pixels);
-    cudaCheckAsyncError("CopySrcToComponents kernel")
 
     /* Free Memory */
-    cudaFree(d_src);
-    cudaCheckAsyncError("Free memory")
+    checkCudaErrors(cudaFree(d_src));
 }
 template void rgbToComponents<float>(float *d_r, float *d_g, float *d_b, unsigned char * src, int width, int height);
 template void rgbToComponents<int>(int *d_r, int *d_g, int *d_b, unsigned char * src, int width, int height);
@@ -169,12 +167,11 @@ void bwToComponent(T *d_c, unsigned char * src, int width, int height)
     int alignedSize =  DIVANDRND(pixels, THREADS) * THREADS; //aligned to thread block size -- THREADS
 
     /* Alloc d_src buffer */
-    cudaMalloc((void **)&d_src, alignedSize);
-    cudaCheckAsyncError("Cuda malloc")
-    cudaMemset(d_src, 0, alignedSize);
+    checkCudaErrors(cudaMalloc((void **)&d_src, alignedSize));
+    checkCudaErrors(cudaMemset(d_src, 0, alignedSize));
 
     /* Copy data to device */
-    cudaMemcpy(d_src, src, pixels, cudaMemcpyHostToDevice);
+    checkCudaErrors(cudaMemcpy(d_src, src, pixels, cudaMemcpyHostToDevice));
     cudaCheckError("Copy data to device")
 
     /* Kernel */
@@ -182,11 +179,9 @@ void bwToComponent(T *d_c, unsigned char * src, int width, int height)
     dim3 grid(alignedSize/(THREADS));
     assert(alignedSize%(THREADS) == 0);
     c_CopySrcToComponent<<<grid, threads>>>(d_c, d_src, pixels);
-    cudaCheckAsyncError("CopySrcToComponent kernel")
 
     /* Free Memory */
-    cudaFree(d_src);
-    cudaCheckAsyncError("Free memory")
+    checkCudaErrors(cudaFree(d_src));
 }
 
 template void bwToComponent<float>(float *d_c, unsigned char *src, int width, int height);

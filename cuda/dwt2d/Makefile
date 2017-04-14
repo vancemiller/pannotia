@@ -9,11 +9,11 @@ cudagdb=0 #compile for use with cuda-gdb, note that 'dbg' must be 1 as well
 performancetest=1
 
 # NVCC Options
-NVCCFLAGS += -arch sm_20
+NVCCFLAGS += -arch sm_20 -g -G
 
 # Files
-CFILES := 
-CXXFILES := 
+CFILES :=
+CXXFILES :=
 CUFILES := main.cu dwt.cu components.cu dwt_cuda/fdwt53.cu dwt_cuda/fdwt97.cu dwt_cuda/common.cu dwt_cuda/rdwt97.cu dwt_cuda/rdwt53.cu
 
 # Includes
@@ -23,10 +23,10 @@ include ../../common/make.config
 
 
 # Common flags
-COMMONFLAGS += $(INCLUDES) 
+COMMONFLAGS += $(INCLUDES)
 NVCCFLAGS += $(COMMONFLAGS)
 CXXFLAGS += $(COMMONFLAGS)
-CFLAGS += $(COMMONFLAGS) -std=c99 
+CFLAGS += $(COMMONFLAGS) -std=c99
 LDFLAGS += -L$(CUDA_INSTALL_PATH)/lib64 -lcudart
 
 # Warning flags (from cuda common.mk)
@@ -57,7 +57,7 @@ CXXFLAGS += $(CXXWARN_FLAGS)
 
 # Debug/release flags
 ifeq ($(dbg),1)
-    COMMONFLAGS += -g 
+    COMMONFLAGS += -g
     NVCCFLAGS   += -D_DEBUG
     CXXFLAGS    += -D_DEBUG
     CFLAGS      += -D_DEBUG
@@ -65,8 +65,8 @@ ifeq ($(dbg),1)
     ifeq ($(cudagdb),1)
         NVCCFLAGS += -G
     endif
-else 
-    COMMONFLAGS += -O2 
+else
+    COMMONFLAGS += -O2
     NVCCFLAGS   += --compiler-options -fno-strict-aliasing
     CXXFLAGS    += -fno-strict-aliasing
     CFLAGS      += -fno-strict-aliasing
@@ -93,7 +93,7 @@ COBJS=$(CFILES:.c=.c.o)
 CXXOBJS=$(CXXFILES:.cpp=.cpp.o)
 CUOBJS=$(CUFILES:.cu=.cu.o)
 
-.SUFFIXES: .c.o .cpp.o .cu.o .cu 
+.SUFFIXES: .c.o .cpp.o .cu.o .cu
 
 %.c.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -104,9 +104,9 @@ CUOBJS=$(CUFILES:.cu=.cu.o)
 %.cpp.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(EXECUTABLE): $(COBJS) $(CXXOBJS) $(CUOBJS) 
+$(EXECUTABLE): $(COBJS) $(CXXOBJS) $(CUOBJS)
 	$(LINK) -o $(EXECUTABLE) $(COBJS) $(CXXOBJS) $(CUOBJS) $(LDFLAGS)
 
 clean:
 	rm -f $(COBJS) $(CXXOBJS) $(CUOBJS) $(EXECUTABLE)
-	rm *.bmp.dwt.*		
+	rm *.bmp.dwt.*
