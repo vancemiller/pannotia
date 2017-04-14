@@ -12,6 +12,7 @@
  */
 
 #include <cuda_runtime.h>
+#include "helper_cuda.h"
 #include "print_helpers.h"
 #include "comparison_helpers.h"
 #include "stats_logger.h"
@@ -27,22 +28,29 @@ long long get_time() {
   gettimeofday(&tv, NULL);
   return (tv.tv_sec * 1000000) + tv.tv_usec;
 }
-void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks=1);
+void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks=1, bool unified=false);
 
 extern "C" void cpu_vlc_encode(unsigned int* indata, unsigned int num_elements, unsigned int* outdata, unsigned int *outsize, unsigned int *codewords, unsigned int* codewordlens);
 
 int main(int argc, char* argv[]){
-  if(!InitCUDA()) { return 0;	}
   unsigned int num_block_threads = 256;
-  if (argc > 1)
-    for (int i=1; i<argc; i++)
-      runVLCTest(argv[i], num_block_threads);
-  else {	runVLCTest(NULL, num_block_threads, 1024);	}
-  CUDA_SAFE_CALL(cudaThreadExit());
+  if (argc > 2) {
+    bool unified = argv[1];
+    for (int i=2; i<argc; i++) {
+      runVLCTest(argv[i], num_block_threads, unified);
+    }
+  } else {
+    bool unified = false;
+    if (argc == 2) {
+      unified = argv[1];
+    }
+    runVLCTest(NULL, num_block_threads, 1024, unified);
+  }
+  checkCudaErrors(cudaThreadExit());
   return 0;
 }
 
-void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks) {
+void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool unified) {
   printf("CUDA! Starting VLC Tests!\n");
   unsigned int num_elements; //uint num_elements = num_blocks * num_block_threads;
   unsigned int mem_size; //uint mem_size = num_elements * sizeof(int);
@@ -52,12 +60,23 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks) {
   initParams(file_name, num_block_threads, num_blocks, num_elements, mem_size, symbol_type_size);
   printf("Parameters: num_elements: %d, num_blocks: %d, num_block_threads: %d\n----------------------------\n", num_elements, num_blocks, num_block_threads);
   ////////LOAD DATA ///////////////
-  uint	*sourceData =	(uint*) malloc(mem_size);
-  uint	*destData   =	(uint*) malloc(mem_size);
-  uint	*crefData   =	(uint*) malloc(mem_size);
-
-  uint	*codewords	   = (uint*) malloc(NUM_SYMBOLS*symbol_type_size);
-  uint	*codewordlens  = (uint*) malloc(NUM_SYMBOLS*symbol_type_size);
+  uint	*sourceData;
+  uint	*destData;
+  uint	*crefData;
+  crefData=	(uint*) malloc(mem_size);
+  uint	*codewords;
+  uint	*codewordlens;
+  if (unified) {
+    checkCudaErrors(cudaMallocManaged(&sourceData, mem_size));
+    checkCudaErrors(cudaMallocManaged(&destData, mem_size));
+    checkCudaErrors(cudaMallocManaged(&codewords, NUM_SYMBOLS * symbol_type_size));
+    checkCudaErrors(cudaMallocManaged(&codewordlens, NUM_SYMBOLS * symbol_type_size));
+  } else {
+    sourceData =	(uint*) malloc(mem_size);
+    destData =	(uint*) malloc(mem_size);
+    codewords = (uint*) malloc(NUM_SYMBOLS*symbol_type_size);
+    codewordlens = (uint*) malloc(NUM_SYMBOLS*symbol_type_size);
+  }
 
   uint	*cw32 =		(uint*) malloc(mem_size);
   uint	*cw32len =	(uint*) malloc(mem_size);
@@ -83,24 +102,35 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks) {
   unsigned int	*d_codewords, *d_codewordlens;
   unsigned int	*d_cw32, *d_cw32len, *d_cw32idx, *d_cindex, *d_cindex2;
 
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_sourceData,		  mem_size));
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_destData,			  mem_size));
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_destDataPacked,	  mem_size));
+  if (unified) {
+    checkCudaErrors(cudaMallocManaged((void**) &d_destDataPacked,	  mem_size));
+  } else {
+    checkCudaErrors(cudaMalloc((void**) &d_sourceData,		  mem_size));
+    checkCudaErrors(cudaMalloc((void**) &d_destData,			  mem_size));
+    checkCudaErrors(cudaMalloc((void**) &d_destDataPacked,	  mem_size));
 
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_codewords,		  NUM_SYMBOLS*symbol_type_size));
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_codewordlens,		  NUM_SYMBOLS*symbol_type_size));
+    checkCudaErrors(cudaMalloc((void**) &d_codewords,		  NUM_SYMBOLS*symbol_type_size));
+    checkCudaErrors(cudaMalloc((void**) &d_codewordlens,		  NUM_SYMBOLS*symbol_type_size));
+  }
 
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_cw32,				  mem_size));
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_cw32len,			  mem_size));
-  CUDA_SAFE_CALL(cudaMalloc((void**) &d_cw32idx,			  mem_size));
+  checkCudaErrors(cudaMalloc((void**) &d_cw32,				  mem_size));
+  checkCudaErrors(cudaMalloc((void**) &d_cw32len,			  mem_size));
+  checkCudaErrors(cudaMalloc((void**) &d_cw32idx,			  mem_size));
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&d_cindex,         num_blocks*sizeof(unsigned int)));
-  CUDA_SAFE_CALL(cudaMalloc((void**)&d_cindex2,        num_blocks*sizeof(unsigned int)));
+  checkCudaErrors(cudaMalloc((void**)&d_cindex,         num_blocks*sizeof(unsigned int)));
+  checkCudaErrors(cudaMalloc((void**)&d_cindex2,        num_blocks*sizeof(unsigned int)));
 
-  CUDA_SAFE_CALL(cudaMemcpy(d_sourceData,		sourceData,		mem_size,		cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(d_codewords,		codewords,		NUM_SYMBOLS*symbol_type_size,	cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(d_codewordlens,	codewordlens,	NUM_SYMBOLS*symbol_type_size,	cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(d_destData,		destData,		mem_size,		cudaMemcpyHostToDevice));
+  if (unified) {
+    d_sourceData = sourceData;
+    d_codewords = codewords;
+    d_codewordlens = codewordlens;
+    d_destData = destData;
+  } else {
+    checkCudaErrors(cudaMemcpy(d_sourceData,		sourceData,		mem_size,		cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_codewords,		codewords,		NUM_SYMBOLS*symbol_type_size,	cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_codewordlens,	codewordlens,	NUM_SYMBOLS*symbol_type_size,	cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_destData,		destData,		mem_size,		cudaMemcpyHostToDevice));
+  }
 
   dim3 grid_size(num_blocks,1,1);
   dim3 block_size(num_block_threads, 1, 1);
@@ -145,7 +175,6 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks) {
   cudaEventElapsedTime( &elapsedTime,
       start, stop ) ;
 
-  CUT_CHECK_ERROR("Kernel execution failed\n");
   printf("GPU Encoding time (SM64HUFF): %f (ms)\n", elapsedTime/NT);
   //////////////////* END KERNEL *///////////////////////////////////
 
@@ -154,21 +183,30 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks) {
   preallocBlockSums(num_scan_elements);
   cudaMemset(d_destDataPacked, 0, mem_size);
   printf("Num_blocks to be passed to scan is %d.\n", num_scan_elements);
-  prescanArray(d_cindex2, d_cindex, num_scan_elements);
+  cudaStream_t stream;
+  checkCudaErrors(cudaStreamCreate(&stream));
+  prescanArray(d_cindex2, d_cindex, num_scan_elements, stream);
 
-  pack2<<< num_scan_elements/16, 16>>>((unsigned int*)d_destData, d_cindex, d_cindex2, (unsigned int*)d_destDataPacked, num_elements/num_scan_elements);
-  CUT_CHECK_ERROR("Pack2 Kernel execution failed\n");
+  pack2<<< num_scan_elements/16, 16, 0, stream>>>((unsigned int*)d_destData, d_cindex, d_cindex2, (unsigned int*)d_destDataPacked, num_elements/num_scan_elements);
+  checkCudaErrors(cudaStreamSynchronize(stream));
   deallocBlockSums();
 
-  CUDA_SAFE_CALL(cudaMemcpy(destData, d_destDataPacked, mem_size, cudaMemcpyDeviceToHost));
+  checkCudaErrors(cudaMemcpy(destData, d_destDataPacked, mem_size, cudaMemcpyDeviceToHost));
   compare_vectors((unsigned int*)crefData, (unsigned int*)destData, num_ints);
 #endif
 
-  free(sourceData); free(destData);  	free(codewords);  	free(codewordlens); free(cw32);  free(cw32len); free(crefData);
-  CUDA_SAFE_CALL(cudaFree(d_sourceData)); 	CUDA_SAFE_CALL(cudaFree(d_destData)); CUDA_SAFE_CALL(cudaFree(d_destDataPacked));
-  CUDA_SAFE_CALL(cudaFree(d_codewords)); 		CUDA_SAFE_CALL(cudaFree(d_codewordlens));
-  CUDA_SAFE_CALL(cudaFree(d_cw32)); 		CUDA_SAFE_CALL(cudaFree(d_cw32len)); 	CUDA_SAFE_CALL(cudaFree(d_cw32idx));
-  CUDA_SAFE_CALL(cudaFree(d_cindex)); CUDA_SAFE_CALL(cudaFree(d_cindex2));
+  if (unified) {
+    checkCudaErrors(cudaFree(sourceData));
+    checkCudaErrors(cudaFree(destData));
+    checkCudaErrors(cudaFree(codewords));
+    checkCudaErrors(cudaFree(codewordlens));
+  } else {
+    free(sourceData); free(destData);  	free(codewords);  	free(codewordlens); free(cw32);  free(cw32len); free(crefData);
+    checkCudaErrors(cudaFree(d_sourceData)); 	checkCudaErrors(cudaFree(d_destData)); checkCudaErrors(cudaFree(d_destDataPacked));
+    checkCudaErrors(cudaFree(d_codewords)); 		checkCudaErrors(cudaFree(d_codewordlens));
+  }
+  checkCudaErrors(cudaFree(d_cw32)); 		checkCudaErrors(cudaFree(d_cw32len)); 	checkCudaErrors(cudaFree(d_cw32idx));
+  checkCudaErrors(cudaFree(d_cindex)); checkCudaErrors(cudaFree(d_cindex2));
   free(cindex2);
 }
 

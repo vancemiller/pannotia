@@ -1,7 +1,8 @@
 #ifndef _PRINT_HELPERS_H_
 #define _PRINT_HELPERS_H_
 
-#include <cstdint>
+#include <stdint.h>
+#include <stdlib.h>
 
 #include "parameters.h"
 #include <stdio.h>

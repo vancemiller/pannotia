@@ -2,8 +2,8 @@
  * Copyright 2009 Tjark Bringewat. All rights reserved.
  */
 
-#include "stdafx.h"
 #include "stats_logger.h"
+#include <stdlib.h>
 #include <cstdio>
 #include <map>
 #include <sstream>

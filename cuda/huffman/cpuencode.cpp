@@ -1,5 +1,6 @@
-#include <cstdint>
-#include "stdafx.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <cmath>
 
 #include "print_helpers.h"
 #include "cpuencode.h"
@@ -28,7 +29,7 @@ void cpu_vlc_encode(uint32_t* indata, uint32_t num_elements, uint32_t* outdata,
       numbits = codewordlens[byte];
 
       while (numbits > 0) {
-        int writebits =  min(32 - startbit, numbits);
+        int writebits = 32 - startbit < numbits ? 32 - startbit : numbits;
         if (numbits == writebits) {
           mask = (cw & ((1 << numbits) - 1)) << (32 - startbit - numbits);
           //first make sure that the start of the word is clean, then shift to the left as many places as you need
