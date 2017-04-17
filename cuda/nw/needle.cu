@@ -1,5 +1,7 @@
 #define LIMIT -999
+#include <errno.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -9,6 +11,15 @@
 
 // includes, kernels
 #include "needle_kernel.cu"
+
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+  }
+
+#define ELAPSED(start, end) \
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -41,12 +52,6 @@ int blosum62[24][24] = {
   {-4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4,  1}
 };
 
-double gettime() {
-  struct timeval t;
-  gettimeofday(&t, NULL);
-  return t.tv_sec + t.tv_usec * 1e-6;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +69,12 @@ void usage(int argc, char **argv) {
 }
 
 void runTest(int argc, char** argv) {
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
   int max_rows, max_cols, penalty;
   int *input_itemsets, *output_itemsets, *reference;
   int *matrix_cuda, *reference_cuda;
@@ -88,6 +99,8 @@ void runTest(int argc, char** argv) {
 
   max_rows = max_rows + 1;
   max_cols = max_cols + 1;
+  size = max_cols * max_rows;
+  TIMESTAMP(t0);
   if (unified) {
     cudaMallocManaged(&reference, sizeof(int) * max_rows * max_cols);
     cudaMallocManaged(&input_itemsets, sizeof(int) * max_rows * max_cols);
@@ -95,7 +108,11 @@ void runTest(int argc, char** argv) {
     reference = (int *) malloc(max_rows * max_cols * sizeof(int));
     input_itemsets = (int *) malloc(max_rows * max_cols * sizeof(int));
     output_itemsets = (int *) malloc(max_rows * max_cols * sizeof(int));
+    cudaMalloc((void**) &reference_cuda, sizeof(int) * size);
+    cudaMalloc((void**) &matrix_cuda, sizeof(int) * size);
   }
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
 
   if (!input_itemsets)
     fprintf(stderr, "error: can not allocate memory");
@@ -128,17 +145,19 @@ void runTest(int argc, char** argv) {
   for (int j = 1; j < max_cols; j++)
     input_itemsets[j] = -j * penalty;
 
-  size = max_cols * max_rows;
+
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
 
   if (unified) {
     reference_cuda = reference;
     matrix_cuda = input_itemsets;
   } else {
-    cudaMalloc((void**) &reference_cuda, sizeof(int) * size);
-    cudaMalloc((void**) &matrix_cuda, sizeof(int) * size);
     cudaMemcpy(reference_cuda, reference, sizeof(int) * size, cudaMemcpyHostToDevice);
     cudaMemcpy(matrix_cuda, input_itemsets, sizeof(int) * size, cudaMemcpyHostToDevice);
   }
+  TIMESTAMP(t3);
+  time_copy_in += ELAPSED(t2, t3);
 
   dim3 dimGrid;
   dim3 dimBlock(BLOCK_SIZE, 1);
@@ -161,22 +180,20 @@ void runTest(int argc, char** argv) {
         i, block_width);
   }
 
+  TIMESTAMP(t4);
+  time_kernel += ELAPSED(t3, t4);
+
   if (unified) {
     output_itemsets = matrix_cuda;
   } else {
     cudaMemcpy(output_itemsets, matrix_cuda, sizeof(int) * size, cudaMemcpyDeviceToHost);
   }
+  TIMESTAMP(t5);
+  time_copy_out += ELAPSED(t4, t5);
 
-  //#define TRACEBACK
-#ifdef TRACEBACK
-
-  FILE *fpo = fopen("result.txt","w");
-  fprintf(fpo, "print traceback value GPU:\n");
-
-  for (int i = max_rows - 2, j = max_rows - 2; i>=0, j>=0;) {
+  // post processing
+  for (int i = max_rows - 2, j = max_rows - 2; i >= 0 && j >= 0;) {
     int nw, n, w, traceback;
-    if ( i == max_rows - 2 && j == max_rows - 2 )
-      fprintf(fpo, "%d ", output_itemsets[ i * max_cols + j]); //print the first element
     if ( i == 0 && j == 0 )
       break;
     if ( i > 0 && j > 0 ) {
@@ -206,8 +223,6 @@ void runTest(int argc, char** argv) {
     if(traceback == new_n)
       traceback = n;
 
-    fprintf(fpo, "%d ", traceback);
-
     if(traceback == nw )
     { i--; j--; continue;}
 
@@ -216,15 +231,10 @@ void runTest(int argc, char** argv) {
 
     else if(traceback == n )
     { i--; continue;}
-
-    else
-      ;
   }
 
-  fclose(fpo);
-
-#endif
-
+  TIMESTAMP(t6);
+  time_serial += ELAPSED(t5, t6);
   if (unified) {
     cudaFree(reference);
     cudaFree(input_itemsets);
@@ -235,4 +245,15 @@ void runTest(int argc, char** argv) {
     free(input_itemsets);
     free(output_itemsets);
   }
+  TIMESTAMP(t7);
+  time_free += ELAPSED(t6, t7);
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t7) * 1e-6);
 }
+
