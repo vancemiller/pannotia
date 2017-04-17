@@ -1,7 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
 #include <assert.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <time.h>
 #include "helper_cuda.h"
 
 #define BLOCK_SIZE 256
@@ -9,7 +11,18 @@
 #define DEVICE 0
 #define HALO 1 // halo width along one direction when advancing to the next iteration
 
-#define BENCH_PRINT
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+  }
+
+#define ELAPSED(start, end) \
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+
+#define IN_RANGE(x, min, max)   ((x)>=(min) && (x)<=(max))
+#define CLAMP_RANGE(x, min, max) x = (x<(min)) ? min : ((x>(max)) ? max : x )
+#define MIN(a, b) ((a)<=(b) ? (a) : (b))
 
 void run(int argc, char** argv);
 
@@ -21,64 +34,24 @@ bool unified;
 #define M_SEED 9
 int pyramid_height;
 
-//#define BENCH_PRINT
+long long time_serial = 0;
+long long time_copy_in = 0;
+long long time_copy_out = 0;
+long long time_kernel = 0;
+long long time_malloc = 0;
+long long time_free = 0;
 
 void init(int argc, char** argv) {
   if (argc >= 4) {
-
     cols = atoi(argv[1]);
-
     rows = atoi(argv[2]);
-
     pyramid_height = atoi(argv[3]);
     unified = argc == 5;
   } else {
-    printf("Usage: dynproc row_len col_len pyramid_height\n");
-    exit(0);
+    printf("Usage: dynproc row_len col_len pyramid_height unified_flag\n");
+    exit(EXIT_FAILURE);
   }
-  if (unified) {
-    checkCudaErrors(cudaMallocManaged(&data, sizeof(int) * rows * cols));
-  } else {
-    data = (int*) malloc(sizeof(int) * rows * cols);
-  }
-
-  wall = new int*[rows];
-
-  for (int n = 0; n < rows; n++)
-    wall[n] = data + cols * n;
-
-  if (!unified) {
-    result = (int*) malloc(sizeof(int) * cols);
-  }
-
-  int seed = M_SEED;
-
-  srand(seed);
-
-  for (int i = 0; i < rows; i++) {
-    for (int j = 0; j < cols; j++) {
-      wall[i][j] = rand() % 10;
-    }
-  }
-
-#ifdef BENCH_PRINT
-
-  for (int i = 0; i < rows; i++) {
-    for (int j = 0; j < cols; j++) {
-      printf("%d ", wall[i][j]);
-    }
-    printf("\n");
-  }
-#endif
 }
-
-void fatal(char *s) {
-  fprintf(stderr, "error: %s\n", s);
-}
-
-#define IN_RANGE(x, min, max)   ((x)>=(min) && (x)<=(max))
-#define CLAMP_RANGE(x, min, max) x = (x<(min)) ? min : ((x>(max)) ? max : x )
-#define MIN(a, b) ((a)<=(b) ? (a) : (b))
 
 __global__ void dynproc_kernel(int iteration, int *gpuWall, int *gpuSrc, int *gpuResults, int cols,
     int rows, int startStep, int border) {
@@ -185,6 +158,38 @@ int main(int argc, char** argv) {
 
 void run(int argc, char** argv) {
   init(argc, argv);
+  TIMESTAMP(t0);
+  if (unified) {
+    checkCudaErrors(cudaMallocManaged(&data, sizeof(int) * rows * cols));
+  } else {
+    data = (int*) malloc(sizeof(int) * rows * cols);
+    result = (int*) malloc(sizeof(int) * cols);
+  }
+  wall = new int*[rows];
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
+
+  for (int n = 0; n < rows; n++)
+    wall[n] = data + cols * n;
+
+  int seed = M_SEED;
+  srand(seed);
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      wall[i][j] = rand() % 10;
+    }
+  }
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
+
+#ifdef BENCH_PRINT
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      printf("%d ", wall[i][j]);
+    }
+    printf("\n");
+  }
+#endif
 
   /* --------------- pyramid parameters --------------- */
   int borderCols = (pyramid_height) * HALO;
@@ -198,6 +203,7 @@ void run(int argc, char** argv) {
   int *gpuWall, *gpuResult[2];
   int size = rows * cols;
 
+  TIMESTAMP(t3);
   if (unified) {
     gpuResult[0] = data;
     checkCudaErrors(cudaMallocManaged(&gpuResult[1], sizeof(int) * cols));
@@ -205,18 +211,29 @@ void run(int argc, char** argv) {
   } else {
     checkCudaErrors(cudaMalloc((void**) &gpuResult[0], sizeof(int) * cols));
     checkCudaErrors(cudaMalloc((void**) &gpuResult[1], sizeof(int) * cols));
-    checkCudaErrors(cudaMemcpy(gpuResult[0], data, sizeof(int) * cols, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMalloc((void**) &gpuWall, sizeof(int) * (size - cols)));
+  }
+  TIMESTAMP(t4);
+  time_malloc += ELAPSED(t3, t4);
+  if (!unified) {
+    checkCudaErrors(cudaMemcpy(gpuResult[0], data, sizeof(int) * cols, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(gpuWall, data + cols, sizeof(int) * (size - cols), cudaMemcpyHostToDevice));
   }
+  TIMESTAMP(t5);
+  time_copy_in = ELAPSED(t4, t5);
 
   int final_ret = calc_path(gpuWall, gpuResult, rows, cols, pyramid_height, blockCols, borderCols);
+
+  TIMESTAMP(t6);
+  time_kernel += ELAPSED(t5, t6);
 
   if (unified) {
     result = gpuResult[final_ret];
   } else {
     checkCudaErrors(cudaMemcpy(result, gpuResult[final_ret], sizeof(int) * cols, cudaMemcpyDeviceToHost));
   }
+  TIMESTAMP(t7);
+  time_copy_out += ELAPSED(t6, t7);
 
 #ifdef BENCH_PRINT
   for (int i = 0; i < cols; i++)
@@ -238,6 +255,15 @@ void run(int argc, char** argv) {
     free(result);
   }
   delete[] wall;
-
+  TIMESTAMP(t8);
+  time_free += ELAPSED(t7, t8);
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t8) * 1e-6);
 }
 
