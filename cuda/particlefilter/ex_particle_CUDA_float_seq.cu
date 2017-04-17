@@ -1,5 +1,7 @@
-#include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <limits.h>
 #include <math.h>
@@ -10,6 +12,16 @@
 #define BLOCK_X 16
 #define BLOCK_Y 16
 #define PI 3.1415926535897932
+
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+  }
+
+#define ELAPSED(start, end) \
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+
 
 const int threads_per_block = 512;
 
@@ -25,21 +37,6 @@ int A = 1103515245;
   @var C value for LCG
  */
 int C = 12345;
-
-/*****************************
- *GET_TIME
- *returns a long int representing the time
- *****************************/
-long long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) +tv.tv_usec;
-}
-// Returns the number of seconds elapsed between the two specified times
-
-double elapsed_time(long long start_time, long long end_time) {
-  return (double) (end_time - start_time) / (1000 * 1000);
-}
 
 /*****************************
  * CHECK_ERROR
@@ -618,6 +615,13 @@ int findIndex(double * CDF, int lengthCDF, double value) {
  */
 void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, int Nparticles,
     bool unified) {
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
+
   int max_size = IszX * IszY*Nfr;
   //original particle centroid
   double xe = roundDouble(IszY / 2.0);
@@ -691,6 +695,7 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   int * seed_GPU;
   double* partial_sums;
 
+  TIMESTAMP(t0);
   //CUDA memory allocation
   if (!unified) {
     check_error(cudaMalloc((void **) &I_GPU, sizeof (unsigned char) *IszX * IszY * Nfr));
@@ -710,6 +715,8 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   check_error(cudaMalloc((void **) &ind_GPU, sizeof (int) *countOnes * Nparticles));
   check_error(cudaMalloc((void **) &partial_sums, sizeof(double) * Nparticles));
 
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
 
   //Donnie - this loop is different because in this kernel, arrayX and arrayY
   //  are set equal to xj before every iteration, so effectively, arrayX and
@@ -719,9 +726,11 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     yj[x] = ye;
   }
 
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
+
   int k;
   //start send
-  long long send_start = get_time();
   if (unified) {
     I_GPU = I;
     objxy_GPU = objxy;
@@ -739,21 +748,21 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     check_error(cudaMemcpy(yj_GPU, yj, sizeof(double) * Nparticles, cudaMemcpyHostToDevice));
     check_error(cudaMemcpy(seed_GPU, seed, sizeof (int) *Nparticles, cudaMemcpyHostToDevice));
   }
-  long long send_end = get_time();
-  printf("TIME TO SEND TO GPU: %f\n", elapsed_time(send_start, send_end));
-  int num_blocks = ceil((double) Nparticles / (double) threads_per_block);
+  TIMESTAMP(t3);
+  time_copy_in += ELAPSED(t2, t3);
 
+  int num_blocks = ceil((double) Nparticles / (double) threads_per_block);
 
   for (k = 1; k < Nfr; k++) {
     likelihood_kernel<<<num_blocks, threads_per_block>>>(arrayX_GPU, arrayY_GPU, xj_GPU, yj_GPU, CDF_GPU, ind_GPU, objxy_GPU, likelihood_GPU, I_GPU, u_GPU, weights_GPU, Nparticles, countOnes, max_size, k, IszY, Nfr, seed_GPU, partial_sums);
     sum_kernel<<<num_blocks, threads_per_block>>>(partial_sums, Nparticles);
     normalize_weights_kernel<<<num_blocks, threads_per_block>>>(weights_GPU, Nparticles, partial_sums, CDF_GPU, u_GPU, seed_GPU);
     find_index_kernel<<<num_blocks, threads_per_block>>>(arrayX_GPU, arrayY_GPU, CDF_GPU, u_GPU, xj_GPU, yj_GPU, weights_GPU, Nparticles);
-  }//end loop
-
+  }
   //block till kernels are finished
   cudaThreadSynchronize();
-  long long back_time = get_time();
+  TIMESTAMP(t4);
+  time_kernel += ELAPSED(t3, t4);
 
   if (!unified) {
     cudaFree(xj_GPU);
@@ -767,24 +776,16 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   cudaFree(likelihood_GPU);
   cudaFree(ind_GPU);
   cudaFree(partial_sums);
+  TIMESTAMP(t5);
+  time_free += ELAPSED(t4, t5);
 
-  long long free_time = get_time();
   if (!unified) {
     check_error(cudaMemcpy(arrayX, arrayX_GPU, sizeof(double) * Nparticles, cudaMemcpyDeviceToHost));
-  }
-  long long arrayX_time = get_time();
-  if (!unified)
     check_error(cudaMemcpy(arrayY, arrayY_GPU, sizeof(double) * Nparticles, cudaMemcpyDeviceToHost));
-  long long arrayY_time = get_time();
-  if (!unified)
     check_error(cudaMemcpy(weights, weights_GPU, sizeof(double) * Nparticles, cudaMemcpyDeviceToHost));
-  long long back_end_time = get_time();
-  printf("GPU Execution: %lf\n", elapsed_time(send_end, back_time));
-  printf("FREE TIME: %lf\n", elapsed_time(back_time, free_time));
-  printf("TIME TO SEND BACK: %lf\n", elapsed_time(back_time, back_end_time));
-  printf("SEND ARRAY X BACK: %lf\n", elapsed_time(free_time, arrayX_time));
-  printf("SEND ARRAY Y BACK: %lf\n", elapsed_time(arrayX_time, arrayY_time));
-  printf("SEND WEIGHTS BACK: %lf\n", elapsed_time(arrayY_time, back_end_time));
+  }
+  TIMESTAMP(t6);
+  time_copy_out += ELAPSED(t5, t6);
 
   xe = 0;
   ye = 0;
@@ -798,6 +799,9 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   double distance = sqrt(pow((double) (xe - (int) roundDouble(IszY / 2.0)), 2) + pow((double) (ye - (int) roundDouble(IszX / 2.0)), 2));
   printf("%lf\n", distance);
 
+  TIMESTAMP(t7);
+  time_serial += ELAPSED(t6, t7);
+
   //CUDA freeing of memory
   if (unified) {
     check_error(cudaFree(objxy));
@@ -806,7 +810,6 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     check_error(cudaFree(yj));
     check_error(cudaFree(arrayX));
     check_error(cudaFree(arrayY));
-
     free(likelihood);
     free(CDF);
     free(ind);
@@ -815,7 +818,6 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     cudaFree(weights_GPU);
     cudaFree(arrayY_GPU);
     cudaFree(arrayX_GPU);
-
     //free regular memory
     free(likelihood);
     free(arrayX);
@@ -826,6 +828,17 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     free(ind);
     free(u);
   }
+  TIMESTAMP(t8);
+  time_free += ELAPSED(t7, t8);
+
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t8) * 1e-6);
 }
 
 int main(int argc, char * argv[]) {
@@ -906,16 +919,10 @@ int main(int argc, char * argv[]) {
   } else {
     I = (unsigned char *) malloc(sizeof(unsigned char) *IszX * IszY * Nfr);
   }
-  long long start = get_time();
   //call video sequence
   videoSequence(I, IszX, IszY, Nfr, seed);
-  long long endVideoSequence = get_time();
-  printf("VIDEO SEQUENCE TOOK %f\n", elapsed_time(start, endVideoSequence));
   //call particle filter
   particleFilter(I, IszX, IszY, Nfr, seed, Nparticles, unified);
-  long long endParticleFilter = get_time();
-  printf("PARTICLE FILTER TOOK %f\n", elapsed_time(endVideoSequence, endParticleFilter));
-  printf("ENTIRE PROGRAM TOOK %f\n", elapsed_time(start, endParticleFilter));
 
   if (unified) {
     check_error(cudaFree(I));
