@@ -1,9 +1,11 @@
 // includes, system
 #include <assert.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include "srad.h"
 
 // includes, project
@@ -12,6 +14,16 @@
 
 // includes, kernels
 #include "srad_kernel.cu"
+
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+  }
+
+#define ELAPSED(start, end) \
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+
 
 void random_matrix(float *I, int rows, int cols);
 void runTest(int argc, char** argv);
@@ -25,6 +37,7 @@ void usage(int argc, char **argv) {
   fprintf(stderr, "\t<x2>       - x2 value of the speckle\n");
   fprintf(stderr, "\t<lamda>   - lambda (0,1)\n");
   fprintf(stderr, "\t<no. of iter>   - number of iterations\n");
+  fprintf(stderr, "\t<unified flag>   - unified or default memory\n");
 
   exit(1);
 }
@@ -40,27 +53,23 @@ int main(int argc, char** argv) {
 }
 
 void runTest(int argc, char** argv) {
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
   int rows, cols, size_I, size_R, niter = 10, iter;
   float *I, *J, lambda, q0sqr, sum, sum2, tmp, meanROI, varROI;
-
-#ifdef CPU
-  float Jc, G2, L, num, den, qsqr;
-  int *iN,*iS,*jE,*jW, k;
-  float *dN,*dS,*dW,*dE;
-  float cN,cS,cW,cE,D;
-#endif
-
-#ifdef GPU
 
   float *J_cuda;
   float *C_cuda;
   float *E_C, *W_C, *N_C, *S_C;
 
-#endif
-
   unsigned int r1, r2, c1, c2;
   float *c;
   bool unified;
+
 
   if (argc >= 9) {
     rows = atoi(argv[1]);  //number of rows in the domain
@@ -84,6 +93,8 @@ void runTest(int argc, char** argv) {
   size_I = cols * rows;
   size_R = (r2 - r1 + 1) * (c2 - c1 + 1);
 
+  TIMESTAMP(t0);
+
   I = (float *) malloc(size_I * sizeof(float));
   if (unified) {
     checkCudaErrors(cudaMallocManaged(&J, size_I * sizeof(float)));
@@ -92,35 +103,6 @@ void runTest(int argc, char** argv) {
   }
   assert(J);
   c = (float*) malloc(sizeof(float) * size_I);
-
-#ifdef CPU
-
-  iN = (int *)malloc(sizeof(unsigned int*) * rows);
-  iS = (int *)malloc(sizeof(unsigned int*) * rows);
-  jW = (int *)malloc(sizeof(unsigned int*) * cols);
-  jE = (int *)malloc(sizeof(unsigned int*) * cols);
-
-  dN = (float *)malloc(sizeof(float)* size_I);
-  dS = (float *)malloc(sizeof(float)* size_I);
-  dW = (float *)malloc(sizeof(float)* size_I);
-  dE = (float *)malloc(sizeof(float)* size_I);
-
-  for (int i=0; i< rows; i++) {
-    iN[i] = i-1;
-    iS[i] = i+1;
-  }
-  for (int j=0; j< cols; j++) {
-    jW[j] = j-1;
-    jE[j] = j+1;
-  }
-  iN[0] = 0;
-  iS[rows-1] = rows-1;
-  jW[0] = 0;
-  jE[cols-1] = cols-1;
-
-#endif
-
-#ifdef GPU
 
   //Allocate device memory
   if (unified) {
@@ -134,7 +116,8 @@ void runTest(int argc, char** argv) {
   checkCudaErrors(cudaMalloc(&S_C, sizeof(float) * size_I));
   checkCudaErrors(cudaMalloc(&N_C, sizeof(float) * size_I));
 
-#endif
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
 
   cudaStream_t stream;
   checkCudaErrors(cudaStreamCreate(&stream));
@@ -146,6 +129,10 @@ void runTest(int argc, char** argv) {
   for (int k = 0; k < size_I; k++) {
     J[k] = (float) exp(I[k]);
   }
+
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
+
   printf("Start the SRAD main loop\n");
   for (iter = 0; iter < niter; iter++) {
     sum = 0;
@@ -161,62 +148,6 @@ void runTest(int argc, char** argv) {
     varROI = (sum2 / size_R) - meanROI * meanROI;
     q0sqr = varROI / (meanROI * meanROI);
 
-#ifdef CPU
-
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-
-        k = i * cols + j;
-        Jc = J[k];
-
-        // directional derivates
-        dN[k] = J[iN[i] * cols + j] - Jc;
-        dS[k] = J[iS[i] * cols + j] - Jc;
-        dW[k] = J[i * cols + jW[j]] - Jc;
-        dE[k] = J[i * cols + jE[j]] - Jc;
-
-        G2 = (dN[k]*dN[k] + dS[k]*dS[k]
-            + dW[k]*dW[k] + dE[k]*dE[k]) / (Jc*Jc);
-
-        L = (dN[k] + dS[k] + dW[k] + dE[k]) / Jc;
-
-        num = (0.5*G2) - ((1.0/16.0)*(L*L));
-        den = 1 + (.25*L);
-        qsqr = num/(den*den);
-
-        // diffusion coefficent (equ 33)
-        den = (qsqr-q0sqr) / (q0sqr * (1+q0sqr));
-        c[k] = 1.0 / (1.0+den);
-
-        // saturate diffusion coefficent
-        if (c[k] < 0) {c[k] = 0;}
-        else if (c[k] > 1) {c[k] = 1;}
-      }
-    }
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-
-        // current index
-        k = i * cols + j;
-
-        // diffusion coefficent
-        cN = c[k];
-        cS = c[iS[i] * cols + j];
-        cW = c[k];
-        cE = c[i * cols + jE[j]];
-
-        // divergence (equ 58)
-        D = cN * dN[k] + cS * dS[k] + cW * dW[k] + cE * dE[k];
-
-        // image update (equ 61)
-        J[k] = J[k] + 0.25*lambda*D;
-      }
-    }
-
-#endif // CPU
-
-#ifdef GPU
-
     //Currently the input size must be divided by 16 - the block size
     int block_x = cols / BLOCK_SIZE;
     int block_y = rows / BLOCK_SIZE;
@@ -226,23 +157,28 @@ void runTest(int argc, char** argv) {
 
     //Copy data from main memory to device memory
     if (!unified) {
+      TIMESTAMP(copy0);
       checkCudaErrors(cudaMemcpy(J_cuda, J, sizeof(float) * size_I, cudaMemcpyHostToDevice));
+      TIMESTAMP(copy1);
+      time_copy_in += ELAPSED(copy0, copy1);
     }
 
     //Run kernels
+    TIMESTAMP(kernel0);
     srad_cuda_1<<<dimGrid, dimBlock, 0, stream>>>(E_C, W_C, N_C, S_C, J_cuda, C_cuda, cols, rows, q0sqr);
-    checkCudaErrors(cudaStreamSynchronize(stream));
     srad_cuda_2<<<dimGrid, dimBlock, 0, stream>>>(E_C, W_C, N_C, S_C, J_cuda, C_cuda, cols, rows, lambda, q0sqr);
     checkCudaErrors(cudaStreamSynchronize(stream));
+    TIMESTAMP(kernel1);
+    time_kernel += ELAPSED(kernel0, kernel1);
 
     //Copy data from device memory to main memory
     if (!unified) {
+      TIMESTAMP(copy0);
       checkCudaErrors(cudaMemcpy(J, J_cuda, sizeof(float) * size_I, cudaMemcpyDeviceToHost));
+      TIMESTAMP(copy1);
+      time_copy_out += ELAPSED(copy0, copy1);
     }
-
-#endif
   }
-
 
 #ifdef OUTPUT
   //Printing output
@@ -257,16 +193,12 @@ void runTest(int argc, char** argv) {
 
   printf("Computation Done\n");
 
+  TIMESTAMP(t3);
   free(I);
   if (unified)
     checkCudaErrors(cudaFree(J));
   else
     free(J);
-#ifdef CPU
-  free(iN); free(iS); free(jW); free(jE);
-  free(dN); free(dS); free(dW); free(dE);
-#endif
-#ifdef GPU
   checkCudaErrors(cudaFree(C_cuda));
   if (!unified)
     checkCudaErrors(cudaFree(J_cuda));
@@ -274,20 +206,26 @@ void runTest(int argc, char** argv) {
   checkCudaErrors(cudaFree(W_C));
   checkCudaErrors(cudaFree(N_C));
   checkCudaErrors(cudaFree(S_C));
-#endif
   free(c);
+  TIMESTAMP(t4);
+  time_free += ELAPSED(t3, t4);
 
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t4) * 1e-6);
 }
 
 void random_matrix(float *I, int rows, int cols) {
-
-  srand(7);
-
+  srand(666);
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
       I[i * cols + j] = rand() / (float) RAND_MAX;
     }
   }
-
 }
 
