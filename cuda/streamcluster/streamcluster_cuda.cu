@@ -35,7 +35,6 @@ using namespace std;
     fprintf(stdout, format, ## __VA_ARGS__);\
   }
 
-
 // host memory
 float* work_mem_h;
 float* coord_h;
@@ -207,8 +206,8 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
     if (unified) {
       coord_d = coord_h;
     } else {
-      checkCudaErrors(cudaMemcpy(coord_d, coord_h, num * dim * sizeof(float),
-          cudaMemcpyHostToDevice));
+      checkCudaErrors(
+          cudaMemcpy(coord_d, coord_h, num * dim * sizeof(float), cudaMemcpyHostToDevice));
     }
   }
   if (unified) {
@@ -216,8 +215,8 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
     center_table_d = center_table;
     p = points->p;
   } else {
-    checkCudaErrors(cudaMemcpy(center_table_d, center_table, num * sizeof(int),
-        cudaMemcpyHostToDevice));
+    checkCudaErrors(
+        cudaMemcpy(center_table_d, center_table, num * sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(p, points->p, num * sizeof(Point), cudaMemcpyHostToDevice));
   }
 
@@ -239,9 +238,9 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
   kernel_compute_cost<<<grid_size, THREADS_PER_BLOCK, 0, stream>>>(
       num,					// in:	# of data
       dim,// in:	dimension of point coordinates
-      x,// in:	point to open a center at
-      p,// in:	data point array
-      K,// in:	number of centers
+      x,  // in:	point to open a center at
+      p,  // in:	data point array
+      K,  // in:	number of centers
       stride,// in:  size of each work_mem segment
       coord_d,// in:	array of point coordinates
       work_mem_d,// out:	cost and lower field array
@@ -257,10 +256,12 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
   // GPU-TO-CPU MEMORY COPY
   //=======================================
   if (!unified) {
-    checkCudaErrors(cudaMemcpy(work_mem_h, work_mem_d, stride * (nThread + 1) * sizeof(float),
-        cudaMemcpyDeviceToHost));
-    checkCudaErrors(cudaMemcpy(switch_membership, switch_membership_d, num * sizeof(bool),
-        cudaMemcpyDeviceToHost));
+    checkCudaErrors(
+        cudaMemcpy(work_mem_h, work_mem_d, stride * (nThread + 1) * sizeof(float),
+            cudaMemcpyDeviceToHost));
+    checkCudaErrors(
+        cudaMemcpy(switch_membership, switch_membership_d, num * sizeof(bool),
+            cudaMemcpyDeviceToHost));
   }
 
   TIMESTAMP(t5);
@@ -314,6 +315,9 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
     gl_cost_of_opening_x = 0;
   }
 
+  TIMESTAMP(t6);
+  *serial_t += ELAPSED(t5, t6);
+
   //=======================================
   // DEALLOCATE HOST MEMORY
   //=======================================
@@ -322,9 +326,6 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
   } else {
     free(work_mem_h);
   }
-
-  TIMESTAMP(t6);
-  *serial_t += ELAPSED(t5, t6);
 
   //=======================================
   // DEALLOCATE GPU MEMORY

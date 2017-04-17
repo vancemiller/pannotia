@@ -1,16 +1,16 @@
 /************************************************
-	streamcluster_cuda_header.cu
-	: header file to streamcluster
+ streamcluster_cuda_header.cu
+ : header file to streamcluster
 
-	- original code from PARSEC Benchmark Suite
-	- parallelization with CUDA API has been applied by
+ - original code from PARSEC Benchmark Suite
+ - parallelization with CUDA API has been applied by
 
-	Sang-Ha (a.k.a Shawn) Lee - sl4ge@virginia.edu
-	University of Virginia
-	Department of Electrical and Computer Engineering
-	Department of Computer Science
+ Sang-Ha (a.k.a Shawn) Lee - sl4ge@virginia.edu
+ University of Virginia
+ Department of Electrical and Computer Engineering
+ Department of Computer Science
 
-***********************************************/
+ ***********************************************/
 
 #ifndef STREAMCLUSTER_CUDA_HEADER_CU
 #define STREAMCLUSTER_CUDA_HEADER_CU
@@ -39,19 +39,18 @@ using namespace std;
 typedef struct {
   float weight;
   float *coord;
-  long assign;  /* number of point where this one is assigned */
-  float cost;  /* cost of that assignment, weight*distance */
+  long assign; /* number of point where this one is assigned */
+  float cost; /* cost of that assignment, weight*distance */
 } Point;
 
 /* this is the array of points */
 typedef struct {
   long num; /* number of points; may not be N if this is a sample */
-  int dim;  /* dimensionality */
+  int dim; /* dimensionality */
   Point *p; /* the array itself */
 } Points;
 
-struct pkmedian_arg_t
-{
+struct pkmedian_arg_t {
   Points* points;
   long kmin;
   long kmax;
@@ -63,7 +62,7 @@ struct pkmedian_arg_t
 
 class PStream {
 public:
-  virtual size_t read( float* dest, int dim, int num ) = 0;
+  virtual size_t read(float* dest, int dim, int num) = 0;
   virtual int ferror() = 0;
   virtual int feof() = 0;
   virtual ~PStream() {
@@ -71,16 +70,16 @@ public:
 };
 
 //synthetic stream
-class SimStream : public PStream {
+class SimStream: public PStream {
 public:
-  SimStream(long n_ ) {
+  SimStream(long n_) {
     n = n_;
   }
-  size_t read( float* dest, int dim, int num ) {
+  size_t read(float* dest, int dim, int num) {
     size_t count = 0;
-    for( int i = 0; i < num && n > 0; i++ ) {
-      for( int k = 0; k < dim; k++ ) {
-	dest[i*dim + k] = lrand48()/(float)INT_MAX;
+    for (int i = 0; i < num && n > 0; i++) {
+      for (int k = 0; k < dim; k++) {
+        dest[i * dim + k] = lrand48() / (float) INT_MAX;
       }
       n--;
       count++;
@@ -99,17 +98,17 @@ private:
   long n;
 };
 
-class FileStream : public PStream {
+class FileStream: public PStream {
 public:
   FileStream(char* filename) {
-    fp = fopen( filename, "rb");
-    if( fp == NULL ) {
-      fprintf(stderr,"error opening file %s\n.",filename);
+    fp = fopen(filename, "rb");
+    if (fp == NULL) {
+      fprintf(stderr, "error opening file %s\n.", filename);
       exit(1);
     }
   }
-  size_t read( float* dest, int dim, int num ) {
-    return std::fread(dest, sizeof(float)*dim, num, fp);
+  size_t read(float* dest, int dim, int num) {
+    return std::fread(dest, sizeof(float) * dim, num, fp);
   }
   int ferror() {
     return std::ferror(fp);
