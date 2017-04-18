@@ -19,19 +19,11 @@
 //======================================================================================================================================================
 //======================================================================================================================================================
 
-__global__ void solver_2(	int workload,
-    int xmax,
+__global__ void solver_2(int workload, int xmax,
 
-    float* x,
-    float* y,
-    float* params,
+float* x, float* y, float* params,
 
-    float* com,
-    float* err,
-    float* scale,
-    float* yy,
-    float* initvalu_temp,
-    float* finavalu_temp){
+float* com, float* err, float* scale, float* yy, float* initvalu_temp, float* finavalu_temp) {
 
   //========================================================================================================================
   //	VARIABLES
@@ -55,7 +47,7 @@ __global__ void solver_2(	int workload,
   int com_pointer;
 
   // solver parameters
-  float err_exponent ;
+  float err_exponent;
   float h_init;
   float h;
   float tolerance;
@@ -77,41 +69,41 @@ __global__ void solver_2(	int workload,
   // CUDA indexes
   bx = blockIdx.x;																// get current horizontal block index (0-n)
   tx = threadIdx.x;																// get current horizontal thread index (0-n)
-  tid = bx*NUMBER_THREADS+tx;
+  tid = bx * NUMBER_THREADS + tx;
 
   // save pointers, these pointers are one per workload, independent of time step
-  err_pointer = tid*EQUATIONS;
-  scale_pointer = tid*EQUATIONS;
-  yy_pointer = tid*EQUATIONS;
-  params_pointer = tid*PARAMETERS;
-  initvalu_temp_pointer = tid*EQUATIONS;
-  finavalu_temp_pointer = tid*13*EQUATIONS;
-  com_pointer = tid*3;
+  err_pointer = tid * EQUATIONS;
+  scale_pointer = tid * EQUATIONS;
+  yy_pointer = tid * EQUATIONS;
+  params_pointer = tid * PARAMETERS;
+  initvalu_temp_pointer = tid * EQUATIONS;
+  finavalu_temp_pointer = tid * 13 * EQUATIONS;
+  com_pointer = tid * 3;
 
   // solver parameters
   err_exponent = 1.0 / 7.0;
   h_init = 1;
   h = h_init;
   xmin = 0;
-  tolerance = 10 / (float)(xmax - xmin);
+  tolerance = 10 / (float) (xmax - xmin);
 
   //========================================================================================================================
   //		RANGE AND STEP CHECKING
   //========================================================================================================================
 
   // Verify that the step size is positive and that the upper endpoint of integration is greater than the initial enpoint.               //
-  if (xmax < xmin || h <= 0.0){
+  if (xmax < xmin || h <= 0.0) {
     return;
   }
 
   // If the upper endpoint of the independent variable agrees with the initial value of the independent variable.  Set the value of the dependent variable and return success. //
-  if (xmax == xmin){
+  if (xmax == xmin) {
     return;
   }
 
   // Insure that the step size h is not larger than the length of the integration interval.                                            //
-  if (h > (xmax - xmin) ) {
-    h = (float)xmax - (float)xmin;
+  if (h > (xmax - xmin)) {
+    h = (float) xmax - (float) xmin;
   }
 
   //========================================================================================================================
@@ -119,15 +111,15 @@ __global__ void solver_2(	int workload,
   //========================================================================================================================
 
   // limit to useful threads
-  if(tid<workload){
+  if (tid < workload) {
 
-    for(k=1; k<(xmax+1); k++) {											// start after initial value
+    for (k = 1; k < (xmax + 1); k++) {											// start after initial value
 
-      y_pointer_initial = tid*((xmax+1)*EQUATIONS)+(k-1)*EQUATIONS;
-      y_pointer_current = tid*((xmax+1)*EQUATIONS)+k*EQUATIONS;
-      x_pointer_current = tid*(xmax+1)+k;
+      y_pointer_initial = tid * ((xmax + 1) * EQUATIONS) + (k - 1) * EQUATIONS;
+      y_pointer_current = tid * ((xmax + 1) * EQUATIONS) + k * EQUATIONS;
+      x_pointer_current = tid * (xmax + 1) + k;
 
-      x[x_pointer_current] = (float)k;															// set this to k if you want time incremente with respect to previous to be k+h, set this to k-1 if you want the increment to be h
+      x[x_pointer_current] = (float) k;	// set this to k if you want time incremente with respect to previous to be k+h, set this to k-1 if you want the increment to be h
       h = h_init;
 
       //==========================================================================================
@@ -155,7 +147,7 @@ __global__ void solver_2(	int workload,
         //		EVALUATE ALL EQUATIONS
         //============================================================
 
-        embedded_fehlberg_7_8_2(	h,																												// single value
+        embedded_fehlberg_7_8_2(h,																									// single value
 
             x[x_pointer_current],																				// single value
             &y[y_pointer_initial],																					// 91 array
@@ -171,8 +163,8 @@ __global__ void solver_2(	int workload,
         //		IF THERE WAS NO ERROR FOR ANY OF EQUATIONS, SET SCALE AND LEAVE THE LOOP
         //============================================================
 
-        for(i=0; i<EQUATIONS; i++){
-          if(err[err_pointer+i] > 0){
+        for (i = 0; i < EQUATIONS; i++) {
+          if (err[err_pointer + i] > 0) {
             error = 1;
           }
         }
@@ -185,30 +177,30 @@ __global__ void solver_2(	int workload,
         //		FIGURE OUT SCALE AS THE MINIMUM OF COMPONENT SCALES
         //============================================================
 
-        for(i=0; i<EQUATIONS; i++){
-          if(y[y_pointer_initial+i] == 0.0){
-            yy[yy_pointer+i] = tolerance;
+        for (i = 0; i < EQUATIONS; i++) {
+          if (y[y_pointer_initial + i] == 0.0) {
+            yy[yy_pointer + i] = tolerance;
+          } else {
+            yy[yy_pointer + i] = fabs(y[y_pointer_initial + i]);
           }
-          else{
-            yy[yy_pointer+i] = fabs(y[y_pointer_initial+i]);
-          }
-          scale[scale_pointer+i] = 0.8 * pow( tolerance * yy[yy_pointer+i] / err[err_pointer+i] , err_exponent );
-          if(scale[scale_pointer+i]<scale_min){
-            scale_min = scale[scale_pointer+i];
+          scale[scale_pointer + i] = 0.8
+              * pow(tolerance * yy[yy_pointer + i] / err[err_pointer + i], err_exponent);
+          if (scale[scale_pointer + i] < scale_min) {
+            scale_min = scale[scale_pointer + i];
           }
         }
-        scale_fina = min( max(scale_min,MIN_SCALE_FACTOR), MAX_SCALE_FACTOR);
+        scale_fina = min(max(scale_min,MIN_SCALE_FACTOR), MAX_SCALE_FACTOR);
 
         //============================================================
         //		IF WITHIN TOLERANCE, FINISH ATTEMPTS...
         //============================================================
 
-        for(i=0; i<EQUATIONS; i++){
-          if ( err[err_pointer+i] > ( tolerance * yy[yy_pointer+i] ) ){
+        for (i = 0; i < EQUATIONS; i++) {
+          if (err[err_pointer + i] > (tolerance * yy[yy_pointer + i])) {
             outside = 1;
           }
         }
-        if (outside == 0){
+        if (outside == 0) {
           break;
         }
 
@@ -225,12 +217,12 @@ __global__ void solver_2(	int workload,
         }
 
         // if instance+step exceeds range limit, limit to that range
-        if ( x[x_pointer_current] + h > (float)xmax ){
-          h = (float)xmax - x[x_pointer_current];
+        if (x[x_pointer_current] + h > (float) xmax) {
+          h = (float) xmax - x[x_pointer_current];
         }
 
         // if getting closer to range limit, decrease step
-        else if ( x[x_pointer_current] + h + 0.5 * h > (float)xmax ){
+        else if (x[x_pointer_current] + h + 0.5 * h > (float) xmax) {
           h = 0.5 * h;
         }
 
@@ -246,7 +238,7 @@ __global__ void solver_2(	int workload,
       //		IF MAXIMUM NUMBER OF ATTEMPTS REACHED AND CANNOT GIVE SOLUTION, EXIT PROGRAM WITH ERROR
       //==========================================================================================
 
-      if ( j >= ATTEMPTS ) {
+      if (j >= ATTEMPTS) {
         return;
       }
 

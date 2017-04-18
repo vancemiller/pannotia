@@ -18,8 +18,6 @@ myocyte.out:		main.o
 # compile main function file into object (binary)
 main.o:	define.c \
 				main.cu \
-				work.cu \
-				solver.cu \
 				embedded_fehlberg_7_8.cu \
 				master.cu \
 				kernel.cu \
@@ -33,8 +31,7 @@ main.o:	define.c \
 				kernel_ecc_2.cu \
 				kernel_cam_2.cu \
 				kernel_fin_2.cu \
-				file.c \
-				timer.c
+				file.c
 	nvcc	main.cu \
 				-c -O3 -g -G
 

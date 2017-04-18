@@ -85,309 +85,364 @@
 //===============================================================================================================================================================================================================
 //===============================================================================================================================================================================================================
 
-__device__ void embedded_fehlberg_7_8_2(	float h,
-
-																			float timeinst,
-																			float* initvalu,
-																			float* finavalu,
-																			float* parameter,
-
-																			float* error,
-																			float* initvalu_temp,
-																			float* finavalu_temp,
-																			float* com) {
-
-	//======================================================================================================================================================
-	//	VARIABLES
-	//======================================================================================================================================================
-
-	const float c_1_11 = 41.0 / 840.0;
-	const float c6 = 34.0 / 105.0;
-	const float c_7_8= 9.0 / 35.0;
-	const float c_9_10 = 9.0 / 280.0;
-
-	const float a2 = 2.0 / 27.0;
-	const float a3 = 1.0 / 9.0;
-	const float a4 = 1.0 / 6.0;
-	const float a5 = 5.0 / 12.0;
-	const float a6 = 1.0 / 2.0;
-	const float a7 = 5.0 / 6.0;
-	const float a8 = 1.0 / 6.0;
-	const float a9 = 2.0 / 3.0;
-	const float a10 = 1.0 / 3.0;
-
-	const float b31 = 1.0 / 36.0;
-	const float b32 = 3.0 / 36.0;
-	const float b41 = 1.0 / 24.0;
-	const float b43 = 3.0 / 24.0;
-	const float b51 = 20.0 / 48.0;
-	const float b53 = -75.0 / 48.0;
-	const float b54 = 75.0 / 48.0;
-	const float b61 = 1.0 / 20.0;
-	const float b64 = 5.0 / 20.0;
-	const float b65 = 4.0 / 20.0;
-	const float b71 = -25.0 / 108.0;
-	const float b74 =  125.0 / 108.0;
-	const float b75 = -260.0 / 108.0;
-	const float b76 =  250.0 / 108.0;
-	const float b81 = 31.0/300.0;
-	const float b85 = 61.0/225.0;
-	const float b86 = -2.0/9.0;
-	const float b87 = 13.0/900.0;
-	const float b91 = 2.0;
-	const float b94 = -53.0/6.0;
-	const float b95 = 704.0 / 45.0;
-	const float b96 = -107.0 / 9.0;
-	const float b97 = 67.0 / 90.0;
-	const float b98 = 3.0;
-	const float b10_1 = -91.0 / 108.0;
-	const float b10_4 = 23.0 / 108.0;
-	const float b10_5 = -976.0 / 135.0;
-	const float b10_6 = 311.0 / 54.0;
-	const float b10_7 = -19.0 / 60.0;
-	const float b10_8 = 17.0 / 6.0;
-	const float b10_9 = -1.0 / 12.0;
-	const float b11_1 = 2383.0 / 4100.0;
-	const float b11_4 = -341.0 / 164.0;
-	const float b11_5 = 4496.0 / 1025.0;
-	const float b11_6 = -301.0 / 82.0;
-	const float b11_7 = 2133.0 / 4100.0;
-	const float b11_8 = 45.0 / 82.0;
-	const float b11_9 = 45.0 / 164.0;
-	const float b11_10 = 18.0 / 41.0;
-	const float b12_1 = 3.0 / 205.0;
-	const float b12_6 = - 6.0 / 41.0;
-	const float b12_7 = - 3.0 / 205.0;
-	const float b12_8 = - 3.0 / 41.0;
-	const float b12_9 = 3.0 / 41.0;
-	const float b12_10 = 6.0 / 41.0;
-	const float b13_1 = -1777.0 / 4100.0;
-	const float b13_4 = -341.0 / 164.0;
-	const float b13_5 = 4496.0 / 1025.0;
-	const float b13_6 = -289.0 / 82.0;
-	const float b13_7 = 2193.0 / 4100.0;
-	const float b13_8 = 51.0 / 82.0;
-	const float b13_9 = 33.0 / 164.0;
-	const float b13_10 = 12.0 / 41.0;
-
-	const float err_factor  = -41.0 / 840.0;
-
-	float h2_7 = a2 * h;
-
-	float timeinst_temp;
-
-	int i,j;
-
-	//======================================================================================================================================================
-	//		EVALUATIONS
-	//======================================================================================================================================================
-
-	for(j=0; j<13; j++){
-
-		//===================================================================================================
-		//		0
-		//===================================================================================================
+__device__ void embedded_fehlberg_7_8_2(float h,
+
+float timeinst, float* initvalu, float* finavalu, float* parameter,
+
+float* error, float* initvalu_temp, float* finavalu_temp, float* com) {
+
+  //======================================================================================================================================================
+  //	VARIABLES
+  //======================================================================================================================================================
+
+  const float c_1_11 = 41.0 / 840.0;
+  const float c6 = 34.0 / 105.0;
+  const float c_7_8 = 9.0 / 35.0;
+  const float c_9_10 = 9.0 / 280.0;
+
+  const float a2 = 2.0 / 27.0;
+  const float a3 = 1.0 / 9.0;
+  const float a4 = 1.0 / 6.0;
+  const float a5 = 5.0 / 12.0;
+  const float a6 = 1.0 / 2.0;
+  const float a7 = 5.0 / 6.0;
+  const float a8 = 1.0 / 6.0;
+  const float a9 = 2.0 / 3.0;
+  const float a10 = 1.0 / 3.0;
+
+  const float b31 = 1.0 / 36.0;
+  const float b32 = 3.0 / 36.0;
+  const float b41 = 1.0 / 24.0;
+  const float b43 = 3.0 / 24.0;
+  const float b51 = 20.0 / 48.0;
+  const float b53 = -75.0 / 48.0;
+  const float b54 = 75.0 / 48.0;
+  const float b61 = 1.0 / 20.0;
+  const float b64 = 5.0 / 20.0;
+  const float b65 = 4.0 / 20.0;
+  const float b71 = -25.0 / 108.0;
+  const float b74 = 125.0 / 108.0;
+  const float b75 = -260.0 / 108.0;
+  const float b76 = 250.0 / 108.0;
+  const float b81 = 31.0 / 300.0;
+  const float b85 = 61.0 / 225.0;
+  const float b86 = -2.0 / 9.0;
+  const float b87 = 13.0 / 900.0;
+  const float b91 = 2.0;
+  const float b94 = -53.0 / 6.0;
+  const float b95 = 704.0 / 45.0;
+  const float b96 = -107.0 / 9.0;
+  const float b97 = 67.0 / 90.0;
+  const float b98 = 3.0;
+  const float b10_1 = -91.0 / 108.0;
+  const float b10_4 = 23.0 / 108.0;
+  const float b10_5 = -976.0 / 135.0;
+  const float b10_6 = 311.0 / 54.0;
+  const float b10_7 = -19.0 / 60.0;
+  const float b10_8 = 17.0 / 6.0;
+  const float b10_9 = -1.0 / 12.0;
+  const float b11_1 = 2383.0 / 4100.0;
+  const float b11_4 = -341.0 / 164.0;
+  const float b11_5 = 4496.0 / 1025.0;
+  const float b11_6 = -301.0 / 82.0;
+  const float b11_7 = 2133.0 / 4100.0;
+  const float b11_8 = 45.0 / 82.0;
+  const float b11_9 = 45.0 / 164.0;
+  const float b11_10 = 18.0 / 41.0;
+  const float b12_1 = 3.0 / 205.0;
+  const float b12_6 = -6.0 / 41.0;
+  const float b12_7 = -3.0 / 205.0;
+  const float b12_8 = -3.0 / 41.0;
+  const float b12_9 = 3.0 / 41.0;
+  const float b12_10 = 6.0 / 41.0;
+  const float b13_1 = -1777.0 / 4100.0;
+  const float b13_4 = -341.0 / 164.0;
+  const float b13_5 = 4496.0 / 1025.0;
+  const float b13_6 = -289.0 / 82.0;
+  const float b13_7 = 2193.0 / 4100.0;
+  const float b13_8 = 51.0 / 82.0;
+  const float b13_9 = 33.0 / 164.0;
+  const float b13_10 = 12.0 / 41.0;
+
+  const float err_factor = -41.0 / 840.0;
+
+  float h2_7 = a2 * h;
+
+  float timeinst_temp;
+
+  int i, j;
+
+  //======================================================================================================================================================
+  //		EVALUATIONS
+  //======================================================================================================================================================
+
+  for (j = 0; j < 13; j++) {
+
+    //===================================================================================================
+    //		0
+    //===================================================================================================
+
+    if (j == 0) {
+
+      timeinst_temp = timeinst;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i];
+      }
 
-		if(j==0){
+    }
 
-			timeinst_temp = timeinst;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] ;
-			}
+    //===================================================================================================
+    //		1
+    //===================================================================================================
 
-		}
+    else if (j == 1) {
 
-		//===================================================================================================
-		//		1
-		//===================================================================================================
+      timeinst_temp = timeinst + h2_7;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i] + h2_7 * (finavalu_temp[0 * EQUATIONS + i]);
+      }
 
-		else if(j==1){
+    }
 
-			timeinst_temp = timeinst+h2_7;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h2_7 * (finavalu_temp[0*EQUATIONS+i]);
-			}
+    //===================================================================================================
+    //		2
+    //===================================================================================================
 
-		}
+    else if (j == 2) {
 
-		//===================================================================================================
-		//		2
-		//===================================================================================================
+      timeinst_temp = timeinst + a3 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h * (b31 * finavalu_temp[0 * EQUATIONS + i] + b32 * finavalu_temp[1 * EQUATIONS + i]);
+      }
 
-		else if(j==2){
+    }
 
-			timeinst_temp = timeinst+a3*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b31*finavalu_temp[0*EQUATIONS+i] + b32*finavalu_temp[1*EQUATIONS+i]);
-			}
+    //===================================================================================================
+    //		3
+    //===================================================================================================
 
-		}
+    else if (j == 3) {
 
-		//===================================================================================================
-		//		3
-		//===================================================================================================
+      timeinst_temp = timeinst + a4 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h * (b41 * finavalu_temp[0 * EQUATIONS + i] + b43 * finavalu_temp[2 * EQUATIONS + i]);
+      }
 
-		else if(j==3){
+    }
+
+    //===================================================================================================
+    //		4
+    //===================================================================================================
+
+    else if (j == 4) {
+
+      timeinst_temp = timeinst + a5 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b51 * finavalu_temp[0 * EQUATIONS + i] + b53 * finavalu_temp[2 * EQUATIONS + i]
+                    + b54 * finavalu_temp[3 * EQUATIONS + i]);
+      }
 
-			timeinst_temp = timeinst+a4*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b41*finavalu_temp[0*EQUATIONS+i] + b43*finavalu_temp[2*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		4
-		//===================================================================================================
-
-		else if(j==4){
-
-			timeinst_temp = timeinst+a5*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b51*finavalu_temp[0*EQUATIONS+i] + b53*finavalu_temp[2*EQUATIONS+i] + b54*finavalu_temp[3*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		5
-		//===================================================================================================
-
-		else if(j==5){
-
-			timeinst_temp = timeinst+a6*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b61*finavalu_temp[0*EQUATIONS+i] + b64*finavalu_temp[3*EQUATIONS+i] + b65*finavalu_temp[4*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		6
-		//===================================================================================================
-
-		else if(j==6){
-
-			timeinst_temp = timeinst+a7*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b71*finavalu_temp[0*EQUATIONS+i] + b74*finavalu_temp[3*EQUATIONS+i] + b75*finavalu_temp[4*EQUATIONS+i] + b76*finavalu_temp[5*EQUATIONS+i]);
-			}
-
-		}
-
-		//===================================================================================================
-		//		7
-		//===================================================================================================
-
-		else if(j==7){
-
-			timeinst_temp = timeinst+a8*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b81*finavalu_temp[0*EQUATIONS+i] + b85*finavalu_temp[4*EQUATIONS+i] + b86*finavalu_temp[5*EQUATIONS+i] + b87*finavalu_temp[6*EQUATIONS+i]);
-			}
-
-		}
-
-		//===================================================================================================
-		//		8
-		//===================================================================================================
-
-		else if(j==8){
-
-			timeinst_temp = timeinst+a9*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b91*finavalu_temp[0*EQUATIONS+i] + b94*finavalu_temp[3*EQUATIONS+i] + b95*finavalu_temp[4*EQUATIONS+i] + b96*finavalu_temp[5*EQUATIONS+i] + b97*finavalu_temp[6*EQUATIONS+i]+ b98*finavalu_temp[7*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		9
-		//===================================================================================================
-
-		else if(j==9){
-
-			timeinst_temp = timeinst+a10*h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b10_1*finavalu_temp[0*EQUATIONS+i] + b10_4*finavalu_temp[3*EQUATIONS+i] + b10_5*finavalu_temp[4*EQUATIONS+i] + b10_6*finavalu_temp[5*EQUATIONS+i] + b10_7*finavalu_temp[6*EQUATIONS+i] + b10_8*finavalu_temp[7*EQUATIONS+i] + b10_9*finavalu_temp[8*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		10
-		//===================================================================================================
-
-		else if(j==10){
-
-			timeinst_temp = timeinst+h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b11_1*finavalu_temp[0*EQUATIONS+i] + b11_4*finavalu_temp[3*EQUATIONS+i] + b11_5*finavalu_temp[4*EQUATIONS+i] + b11_6*finavalu_temp[5*EQUATIONS+i] + b11_7*finavalu_temp[6*EQUATIONS+i] + b11_8*finavalu_temp[7*EQUATIONS+i] + b11_9*finavalu_temp[8*EQUATIONS+i]+ b11_10 * finavalu_temp[9*EQUATIONS+i]);
-			}
-
-		}
-
-		//===================================================================================================
-		//		11
-		//===================================================================================================
-
-		else if(j==11){
-
-			timeinst_temp = timeinst;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b12_1*finavalu_temp[0*EQUATIONS+i] + b12_6*finavalu_temp[5*EQUATIONS+i] + b12_7*finavalu_temp[6*EQUATIONS+i] + b12_8*finavalu_temp[7*EQUATIONS+i] + b12_9*finavalu_temp[8*EQUATIONS+i] + b12_10 * finavalu_temp[9*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		12
-		//===================================================================================================
-
-		else if(j==12){
-
-			timeinst_temp = timeinst+h;
-			for(i=0; i<EQUATIONS; i++){
-				initvalu_temp[i] = initvalu[i] + h * ( b13_1*finavalu_temp[0*EQUATIONS+i] + b13_4*finavalu_temp[3*EQUATIONS+i] + b13_5*finavalu_temp[4*EQUATIONS+i] + b13_6*finavalu_temp[5*EQUATIONS+i] + b13_7*finavalu_temp[6*EQUATIONS+i] + b13_8*finavalu_temp[7*EQUATIONS+i] + b13_9*finavalu_temp[8*EQUATIONS+i] + b13_10*finavalu_temp[9*EQUATIONS+i] + finavalu_temp[11*EQUATIONS+i]) ;
-			}
-
-		}
-
-		//===================================================================================================
-		//		EVALUATION
-		//===================================================================================================
-
-		kernel_2(	timeinst_temp,
-							initvalu_temp,
-							parameter,
-							&finavalu_temp[j*EQUATIONS],
-							com);
-
-	}
-
-	//======================================================================================================================================================
-	//		FINAL VALUE
-	//======================================================================================================================================================
-
-	for(i=0; i<EQUATIONS; i++){
-		finavalu[i]= initvalu[i] +  h * (c_1_11 * (finavalu_temp[0*EQUATIONS+i] + finavalu_temp[10*EQUATIONS+i])  + c6 * finavalu_temp[5*EQUATIONS+i] + c_7_8 * (finavalu_temp[6*EQUATIONS+i] + finavalu_temp[7*EQUATIONS+i]) + c_9_10 * (finavalu_temp[8*EQUATIONS+i] + finavalu_temp[9*EQUATIONS+i]) );
-		// printf("finavalu_temp[0][%d] = %f\n", i, finavalu_temp[0][i]);
-		// printf("finavalu_temp[10][%d] = %f\n", i, finavalu_temp[10][i]);
-		// printf("finavalu_temp[5][%d] = %f\n", i, finavalu_temp[5][i]);
-		// printf("finavalu_temp[6][%d] = %f\n", i, finavalu_temp[6][i]);
-		// printf("finavalu_temp[7][%d] = %f\n", i, finavalu_temp[7][i]);
-		// printf("finavalu_temp[8][%d] = %f\n", i, finavalu_temp[8][i]);
-		// printf("finavalu_temp[9][%d] = %f\n", i, finavalu_temp[9][i]);
-		// printf("finavalu[%d] = %f\n", i, finavalu[i]);
-	}
-
-	//======================================================================================================================================================
-	//		RETURN
-	//======================================================================================================================================================
-
-	for(i=0; i<EQUATIONS; i++){
-		error[i] = fabs(err_factor * (finavalu_temp[0*EQUATIONS+i] + finavalu_temp[10*EQUATIONS+i] - finavalu_temp[11*EQUATIONS+i] - finavalu_temp[12*EQUATIONS+i]));
-		// printf("Error[%d] = %f\n", i, error[i]);
-	}
+    }
+
+    //===================================================================================================
+    //		5
+    //===================================================================================================
+
+    else if (j == 5) {
+
+      timeinst_temp = timeinst + a6 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b61 * finavalu_temp[0 * EQUATIONS + i] + b64 * finavalu_temp[3 * EQUATIONS + i]
+                    + b65 * finavalu_temp[4 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		6
+    //===================================================================================================
+
+    else if (j == 6) {
+
+      timeinst_temp = timeinst + a7 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b71 * finavalu_temp[0 * EQUATIONS + i] + b74 * finavalu_temp[3 * EQUATIONS + i]
+                    + b75 * finavalu_temp[4 * EQUATIONS + i]
+                    + b76 * finavalu_temp[5 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		7
+    //===================================================================================================
+
+    else if (j == 7) {
+
+      timeinst_temp = timeinst + a8 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b81 * finavalu_temp[0 * EQUATIONS + i] + b85 * finavalu_temp[4 * EQUATIONS + i]
+                    + b86 * finavalu_temp[5 * EQUATIONS + i]
+                    + b87 * finavalu_temp[6 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		8
+    //===================================================================================================
+
+    else if (j == 8) {
+
+      timeinst_temp = timeinst + a9 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b91 * finavalu_temp[0 * EQUATIONS + i] + b94 * finavalu_temp[3 * EQUATIONS + i]
+                    + b95 * finavalu_temp[4 * EQUATIONS + i]
+                    + b96 * finavalu_temp[5 * EQUATIONS + i]
+                    + b97 * finavalu_temp[6 * EQUATIONS + i]
+                    + b98 * finavalu_temp[7 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		9
+    //===================================================================================================
+
+    else if (j == 9) {
+
+      timeinst_temp = timeinst + a10 * h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b10_1 * finavalu_temp[0 * EQUATIONS + i]
+                    + b10_4 * finavalu_temp[3 * EQUATIONS + i]
+                    + b10_5 * finavalu_temp[4 * EQUATIONS + i]
+                    + b10_6 * finavalu_temp[5 * EQUATIONS + i]
+                    + b10_7 * finavalu_temp[6 * EQUATIONS + i]
+                    + b10_8 * finavalu_temp[7 * EQUATIONS + i]
+                    + b10_9 * finavalu_temp[8 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		10
+    //===================================================================================================
+
+    else if (j == 10) {
+
+      timeinst_temp = timeinst + h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b11_1 * finavalu_temp[0 * EQUATIONS + i]
+                    + b11_4 * finavalu_temp[3 * EQUATIONS + i]
+                    + b11_5 * finavalu_temp[4 * EQUATIONS + i]
+                    + b11_6 * finavalu_temp[5 * EQUATIONS + i]
+                    + b11_7 * finavalu_temp[6 * EQUATIONS + i]
+                    + b11_8 * finavalu_temp[7 * EQUATIONS + i]
+                    + b11_9 * finavalu_temp[8 * EQUATIONS + i]
+                    + b11_10 * finavalu_temp[9 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		11
+    //===================================================================================================
+
+    else if (j == 11) {
+
+      timeinst_temp = timeinst;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] = initvalu[i]
+            + h
+                * (b12_1 * finavalu_temp[0 * EQUATIONS + i]
+                    + b12_6 * finavalu_temp[5 * EQUATIONS + i]
+                    + b12_7 * finavalu_temp[6 * EQUATIONS + i]
+                    + b12_8 * finavalu_temp[7 * EQUATIONS + i]
+                    + b12_9 * finavalu_temp[8 * EQUATIONS + i]
+                    + b12_10 * finavalu_temp[9 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		12
+    //===================================================================================================
+
+    else if (j == 12) {
+
+      timeinst_temp = timeinst + h;
+      for (i = 0; i < EQUATIONS; i++) {
+        initvalu_temp[i] =
+            initvalu[i]
+                + h
+                    * (b13_1 * finavalu_temp[0 * EQUATIONS + i]
+                        + b13_4 * finavalu_temp[3 * EQUATIONS + i]
+                        + b13_5 * finavalu_temp[4 * EQUATIONS + i]
+                        + b13_6 * finavalu_temp[5 * EQUATIONS + i]
+                        + b13_7 * finavalu_temp[6 * EQUATIONS + i]
+                        + b13_8 * finavalu_temp[7 * EQUATIONS + i]
+                        + b13_9 * finavalu_temp[8 * EQUATIONS + i]
+                        + b13_10 * finavalu_temp[9 * EQUATIONS + i]
+                        + finavalu_temp[11 * EQUATIONS + i]);
+      }
+
+    }
+
+    //===================================================================================================
+    //		EVALUATION
+    //===================================================================================================
+
+    kernel_2(timeinst_temp, initvalu_temp, parameter, &finavalu_temp[j * EQUATIONS], com);
+
+  }
+
+  //======================================================================================================================================================
+  //		FINAL VALUE
+  //======================================================================================================================================================
+
+  for (i = 0; i < EQUATIONS; i++) {
+    finavalu[i] = initvalu[i]
+        + h
+            * (c_1_11 * (finavalu_temp[0 * EQUATIONS + i] + finavalu_temp[10 * EQUATIONS + i])
+                + c6 * finavalu_temp[5 * EQUATIONS + i]
+                + c_7_8 * (finavalu_temp[6 * EQUATIONS + i] + finavalu_temp[7 * EQUATIONS + i])
+                + c_9_10 * (finavalu_temp[8 * EQUATIONS + i] + finavalu_temp[9 * EQUATIONS + i]));
+    // printf("finavalu_temp[0][%d] = %f\n", i, finavalu_temp[0][i]);
+    // printf("finavalu_temp[10][%d] = %f\n", i, finavalu_temp[10][i]);
+    // printf("finavalu_temp[5][%d] = %f\n", i, finavalu_temp[5][i]);
+    // printf("finavalu_temp[6][%d] = %f\n", i, finavalu_temp[6][i]);
+    // printf("finavalu_temp[7][%d] = %f\n", i, finavalu_temp[7][i]);
+    // printf("finavalu_temp[8][%d] = %f\n", i, finavalu_temp[8][i]);
+    // printf("finavalu_temp[9][%d] = %f\n", i, finavalu_temp[9][i]);
+    // printf("finavalu[%d] = %f\n", i, finavalu[i]);
+  }
+
+  //======================================================================================================================================================
+  //		RETURN
+  //======================================================================================================================================================
+
+  for (i = 0; i < EQUATIONS; i++) {
+    error[i] = fabs(
+        err_factor
+            * (finavalu_temp[0 * EQUATIONS + i] + finavalu_temp[10 * EQUATIONS + i]
+                - finavalu_temp[11 * EQUATIONS + i] - finavalu_temp[12 * EQUATIONS + i]));
+    // printf("Error[%d] = %f\n", i, error[i]);
+  }
 
 }

@@ -81,406 +81,348 @@
 //===============================================================================================================================================================================================================
 //===============================================================================================================================================================================================================
 #include "helper_cuda.h"
-void embedded_fehlberg_7_8(	float timeinst,
-													float h,
-													float* initvalu,
-													float* finavalu,
-													float* error,
-													float* parameter,
-													float* com,
+void embedded_fehlberg_7_8(float timeinst, float h, float* initvalu, float* finavalu, float* error,
+    float* parameter, float* com,
 
-													float* d_initvalu,
-													float* d_finavalu,
-													float* d_params,
-													float* d_com, bool unified) {
+    float* d_initvalu, float* d_finavalu, float* d_params, float* d_com, bool unified) {
 
-	//======================================================================================================================================================
-	//	VARIABLES
-	//======================================================================================================================================================
+  //======================================================================================================================================================
+  //	VARIABLES
+  //======================================================================================================================================================
 
-	static const float c_1_11 = 41.0 / 840.0;
-	static const float c6 = 34.0 / 105.0;
-	static const float c_7_8= 9.0 / 35.0;
-	static const float c_9_10 = 9.0 / 280.0;
+  static const float c_1_11 = 41.0 / 840.0;
+  static const float c6 = 34.0 / 105.0;
+  static const float c_7_8 = 9.0 / 35.0;
+  static const float c_9_10 = 9.0 / 280.0;
 
-	static const float a2 = 2.0 / 27.0;
-	static const float a3 = 1.0 / 9.0;
-	static const float a4 = 1.0 / 6.0;
-	static const float a5 = 5.0 / 12.0;
-	static const float a6 = 1.0 / 2.0;
-	static const float a7 = 5.0 / 6.0;
-	static const float a8 = 1.0 / 6.0;
-	static const float a9 = 2.0 / 3.0;
-	static const float a10 = 1.0 / 3.0;
+  static const float a2 = 2.0 / 27.0;
+  static const float a3 = 1.0 / 9.0;
+  static const float a4 = 1.0 / 6.0;
+  static const float a5 = 5.0 / 12.0;
+  static const float a6 = 1.0 / 2.0;
+  static const float a7 = 5.0 / 6.0;
+  static const float a8 = 1.0 / 6.0;
+  static const float a9 = 2.0 / 3.0;
+  static const float a10 = 1.0 / 3.0;
 
-	static const float b31 = 1.0 / 36.0;
-	static const float b32 = 3.0 / 36.0;
-	static const float b41 = 1.0 / 24.0;
-	static const float b43 = 3.0 / 24.0;
-	static const float b51 = 20.0 / 48.0;
-	static const float b53 = -75.0 / 48.0;
-	static const float b54 = 75.0 / 48.0;
-	static const float b61 = 1.0 / 20.0;
-	static const float b64 = 5.0 / 20.0;
-	static const float b65 = 4.0 / 20.0;
-	static const float b71 = -25.0 / 108.0;
-	static const float b74 =  125.0 / 108.0;
-	static const float b75 = -260.0 / 108.0;
-	static const float b76 =  250.0 / 108.0;
-	static const float b81 = 31.0/300.0;
-	static const float b85 = 61.0/225.0;
-	static const float b86 = -2.0/9.0;
-	static const float b87 = 13.0/900.0;
-	static const float b91 = 2.0;
-	static const float b94 = -53.0/6.0;
-	static const float b95 = 704.0 / 45.0;
-	static const float b96 = -107.0 / 9.0;
-	static const float b97 = 67.0 / 90.0;
-	static const float b98 = 3.0;
-	static const float b10_1 = -91.0 / 108.0;
-	static const float b10_4 = 23.0 / 108.0;
-	static const float b10_5 = -976.0 / 135.0;
-	static const float b10_6 = 311.0 / 54.0;
-	static const float b10_7 = -19.0 / 60.0;
-	static const float b10_8 = 17.0 / 6.0;
-	static const float b10_9 = -1.0 / 12.0;
-	static const float b11_1 = 2383.0 / 4100.0;
-	static const float b11_4 = -341.0 / 164.0;
-	static const float b11_5 = 4496.0 / 1025.0;
-	static const float b11_6 = -301.0 / 82.0;
-	static const float b11_7 = 2133.0 / 4100.0;
-	static const float b11_8 = 45.0 / 82.0;
-	static const float b11_9 = 45.0 / 164.0;
-	static const float b11_10 = 18.0 / 41.0;
-	static const float b12_1 = 3.0 / 205.0;
-	static const float b12_6 = - 6.0 / 41.0;
-	static const float b12_7 = - 3.0 / 205.0;
-	static const float b12_8 = - 3.0 / 41.0;
-	static const float b12_9 = 3.0 / 41.0;
-	static const float b12_10 = 6.0 / 41.0;
-	static const float b13_1 = -1777.0 / 4100.0;
-	static const float b13_4 = -341.0 / 164.0;
-	static const float b13_5 = 4496.0 / 1025.0;
-	static const float b13_6 = -289.0 / 82.0;
-	static const float b13_7 = 2193.0 / 4100.0;
-	static const float b13_8 = 51.0 / 82.0;
-	static const float b13_9 = 33.0 / 164.0;
-	static const float b13_10 = 12.0 / 41.0;
+  static const float b31 = 1.0 / 36.0;
+  static const float b32 = 3.0 / 36.0;
+  static const float b41 = 1.0 / 24.0;
+  static const float b43 = 3.0 / 24.0;
+  static const float b51 = 20.0 / 48.0;
+  static const float b53 = -75.0 / 48.0;
+  static const float b54 = 75.0 / 48.0;
+  static const float b61 = 1.0 / 20.0;
+  static const float b64 = 5.0 / 20.0;
+  static const float b65 = 4.0 / 20.0;
+  static const float b71 = -25.0 / 108.0;
+  static const float b74 = 125.0 / 108.0;
+  static const float b75 = -260.0 / 108.0;
+  static const float b76 = 250.0 / 108.0;
+  static const float b81 = 31.0 / 300.0;
+  static const float b85 = 61.0 / 225.0;
+  static const float b86 = -2.0 / 9.0;
+  static const float b87 = 13.0 / 900.0;
+  static const float b91 = 2.0;
+  static const float b94 = -53.0 / 6.0;
+  static const float b95 = 704.0 / 45.0;
+  static const float b96 = -107.0 / 9.0;
+  static const float b97 = 67.0 / 90.0;
+  static const float b98 = 3.0;
+  static const float b10_1 = -91.0 / 108.0;
+  static const float b10_4 = 23.0 / 108.0;
+  static const float b10_5 = -976.0 / 135.0;
+  static const float b10_6 = 311.0 / 54.0;
+  static const float b10_7 = -19.0 / 60.0;
+  static const float b10_8 = 17.0 / 6.0;
+  static const float b10_9 = -1.0 / 12.0;
+  static const float b11_1 = 2383.0 / 4100.0;
+  static const float b11_4 = -341.0 / 164.0;
+  static const float b11_5 = 4496.0 / 1025.0;
+  static const float b11_6 = -301.0 / 82.0;
+  static const float b11_7 = 2133.0 / 4100.0;
+  static const float b11_8 = 45.0 / 82.0;
+  static const float b11_9 = 45.0 / 164.0;
+  static const float b11_10 = 18.0 / 41.0;
+  static const float b12_1 = 3.0 / 205.0;
+  static const float b12_6 = -6.0 / 41.0;
+  static const float b12_7 = -3.0 / 205.0;
+  static const float b12_8 = -3.0 / 41.0;
+  static const float b12_9 = 3.0 / 41.0;
+  static const float b12_10 = 6.0 / 41.0;
+  static const float b13_1 = -1777.0 / 4100.0;
+  static const float b13_4 = -341.0 / 164.0;
+  static const float b13_5 = 4496.0 / 1025.0;
+  static const float b13_6 = -289.0 / 82.0;
+  static const float b13_7 = 2193.0 / 4100.0;
+  static const float b13_8 = 51.0 / 82.0;
+  static const float b13_9 = 33.0 / 164.0;
+  static const float b13_10 = 12.0 / 41.0;
 
-	static const float err_factor  = -41.0 / 840.0;
+  static const float err_factor = -41.0 / 840.0;
 
-	float h2_7 = a2 * h;
+  float h2_7 = a2 * h;
 
-	float timeinst_temp;
-	float* initvalu_temp;
-	float** finavalu_temp;
+  float timeinst_temp;
+  float* initvalu_temp;
+  float** finavalu_temp;
 
-	int i;
+  int i;
 
-	//======================================================================================================================================================
-	//		TEMPORARY STORAGE ALLOCATION
-	//======================================================================================================================================================
+  //======================================================================================================================================================
+  //		TEMPORARY STORAGE ALLOCATION
+  //======================================================================================================================================================
 
   if (unified) {
     checkCudaErrors(cudaMallocManaged(&initvalu_temp, EQUATIONS * sizeof(float)));
   } else {
-    initvalu_temp= (float*) malloc(EQUATIONS * sizeof(float));
+    initvalu_temp = (float*) malloc(EQUATIONS * sizeof(float));
   }
 
-	finavalu_temp= (float **) malloc(13* sizeof(float *));
-	for (i= 0; i<13; i++){
+  finavalu_temp = (float **) malloc(13 * sizeof(float *));
+  for (i = 0; i < 13; i++) {
     if (unified) {
       checkCudaErrors(cudaMallocManaged(&finavalu_temp[i], EQUATIONS * sizeof(float)));
     } else {
-      finavalu_temp[i]= (float *) malloc(EQUATIONS* sizeof(float));
+      finavalu_temp[i] = (float *) malloc(EQUATIONS * sizeof(float));
 
     }
-	}
+  }
 
-	//======================================================================================================================================================
-	//		EVALUATIONS
-	//======================================================================================================================================================
+  //======================================================================================================================================================
+  //		EVALUATIONS
+  //======================================================================================================================================================
 
-	//===================================================================================================
-	//		1
-	//===================================================================================================
+  //===================================================================================================
+  //		1
+  //===================================================================================================
 
-	timeinst_temp = timeinst;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] ;
-		// printf("initvalu[%d] = %f\n", i, initvalu[i]);
-	}
+  timeinst_temp = timeinst;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i];
+    // printf("initvalu[%d] = %f\n", i, initvalu[i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[0],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[0], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		2
-	//===================================================================================================
+  //===================================================================================================
+  //		2
+  //===================================================================================================
 
-	timeinst_temp = timeinst+h2_7;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h2_7 * (finavalu_temp[0][i]);
-	}
+  timeinst_temp = timeinst + h2_7;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i] + h2_7 * (finavalu_temp[0][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[1],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[1], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		3
-	//===================================================================================================
+  //===================================================================================================
+  //		3
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a3*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b31*finavalu_temp[0][i] + b32*finavalu_temp[1][i]);
-	}
+  timeinst_temp = timeinst + a3 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i] + h * (b31 * finavalu_temp[0][i] + b32 * finavalu_temp[1][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[2],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[2], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		4
-	//===================================================================================================
+  //===================================================================================================
+  //		4
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a4*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b41*finavalu_temp[0][i] + b43*finavalu_temp[2][i]) ;
-	}
+  timeinst_temp = timeinst + a4 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i] + h * (b41 * finavalu_temp[0][i] + b43 * finavalu_temp[2][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[3],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[3], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		5
-	//===================================================================================================
+  //===================================================================================================
+  //		5
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a5*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b51*finavalu_temp[0][i] + b53*finavalu_temp[2][i] + b54*finavalu_temp[3][i]) ;
-	}
+  timeinst_temp = timeinst + a5 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h * (b51 * finavalu_temp[0][i] + b53 * finavalu_temp[2][i] + b54 * finavalu_temp[3][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[4],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[4], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		6
-	//===================================================================================================
+  //===================================================================================================
+  //		6
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a6*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b61*finavalu_temp[0][i] + b64*finavalu_temp[3][i] + b65*finavalu_temp[4][i]) ;
-	}
+  timeinst_temp = timeinst + a6 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h * (b61 * finavalu_temp[0][i] + b64 * finavalu_temp[3][i] + b65 * finavalu_temp[4][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[5],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[5], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		7
-	//===================================================================================================
+  //===================================================================================================
+  //		7
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a7*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b71*finavalu_temp[0][i] + b74*finavalu_temp[3][i] + b75*finavalu_temp[4][i] + b76*finavalu_temp[5][i]);
-	}
+  timeinst_temp = timeinst + a7 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h
+            * (b71 * finavalu_temp[0][i] + b74 * finavalu_temp[3][i] + b75 * finavalu_temp[4][i]
+                + b76 * finavalu_temp[5][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[6],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[6], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		8
-	//===================================================================================================
+  //===================================================================================================
+  //		8
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a8*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b81*finavalu_temp[0][i] + b85*finavalu_temp[4][i] + b86*finavalu_temp[5][i] + b87*finavalu_temp[6][i]);
-	}
+  timeinst_temp = timeinst + a8 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h
+            * (b81 * finavalu_temp[0][i] + b85 * finavalu_temp[4][i] + b86 * finavalu_temp[5][i]
+                + b87 * finavalu_temp[6][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[7],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[7], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		9
-	//===================================================================================================
+  //===================================================================================================
+  //		9
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a9*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b91*finavalu_temp[0][i] + b94*finavalu_temp[3][i] + b95*finavalu_temp[4][i] + b96*finavalu_temp[5][i] + b97*finavalu_temp[6][i]+ b98*finavalu_temp[7][i]) ;
-	}
+  timeinst_temp = timeinst + a9 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] =
+        initvalu[i]
+            + h
+                * (b91 * finavalu_temp[0][i] + b94 * finavalu_temp[3][i] + b95 * finavalu_temp[4][i]
+                    + b96 * finavalu_temp[5][i] + b97 * finavalu_temp[6][i]
+                    + b98 * finavalu_temp[7][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[8],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[8], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		10
-	//===================================================================================================
+  //===================================================================================================
+  //		10
+  //===================================================================================================
 
-	timeinst_temp = timeinst+a10*h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b10_1*finavalu_temp[0][i] + b10_4*finavalu_temp[3][i] + b10_5*finavalu_temp[4][i] + b10_6*finavalu_temp[5][i] + b10_7*finavalu_temp[6][i] + b10_8*finavalu_temp[7][i] + b10_9*finavalu_temp[8] [i]) ;
-	}
+  timeinst_temp = timeinst + a10 * h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h
+            * (b10_1 * finavalu_temp[0][i] + b10_4 * finavalu_temp[3][i]
+                + b10_5 * finavalu_temp[4][i] + b10_6 * finavalu_temp[5][i]
+                + b10_7 * finavalu_temp[6][i] + b10_8 * finavalu_temp[7][i]
+                + b10_9 * finavalu_temp[8][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[9],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[9], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		11
-	//===================================================================================================
+  //===================================================================================================
+  //		11
+  //===================================================================================================
 
-	timeinst_temp = timeinst+h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b11_1*finavalu_temp[0][i] + b11_4*finavalu_temp[3][i] + b11_5*finavalu_temp[4][i] + b11_6*finavalu_temp[5][i] + b11_7*finavalu_temp[6][i] + b11_8*finavalu_temp[7][i] + b11_9*finavalu_temp[8][i]+ b11_10 * finavalu_temp[9][i]);
-	}
+  timeinst_temp = timeinst + h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h
+            * (b11_1 * finavalu_temp[0][i] + b11_4 * finavalu_temp[3][i]
+                + b11_5 * finavalu_temp[4][i] + b11_6 * finavalu_temp[5][i]
+                + b11_7 * finavalu_temp[6][i] + b11_8 * finavalu_temp[7][i]
+                + b11_9 * finavalu_temp[8][i] + b11_10 * finavalu_temp[9][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[10],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[10], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		12
-	//===================================================================================================
+  //===================================================================================================
+  //		12
+  //===================================================================================================
 
-	timeinst_temp = timeinst;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b12_1*finavalu_temp[0][i] + b12_6*finavalu_temp[5][i] + b12_7*finavalu_temp[6][i] + b12_8*finavalu_temp[7][i] + b12_9*finavalu_temp[8][i] + b12_10 * finavalu_temp[9][i]) ;
-	}
+  timeinst_temp = timeinst;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] = initvalu[i]
+        + h
+            * (b12_1 * finavalu_temp[0][i] + b12_6 * finavalu_temp[5][i]
+                + b12_7 * finavalu_temp[6][i] + b12_8 * finavalu_temp[7][i]
+                + b12_9 * finavalu_temp[8][i] + b12_10 * finavalu_temp[9][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[11],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[11], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//===================================================================================================
-	//		13
-	//===================================================================================================
+  //===================================================================================================
+  //		13
+  //===================================================================================================
 
-	timeinst_temp = timeinst+h;
-	for(i=0; i<EQUATIONS; i++){
-		initvalu_temp[i] = initvalu[i] + h * ( b13_1*finavalu_temp[0][i] + b13_4*finavalu_temp[3][i] + b13_5*finavalu_temp[4][i] + b13_6*finavalu_temp[5][i] + b13_7*finavalu_temp[6][i] + b13_8*finavalu_temp[7][i] + b13_9*finavalu_temp[8][i] + b13_10*finavalu_temp[9][i] + finavalu_temp[11][i]) ;
-	}
+  timeinst_temp = timeinst + h;
+  for (i = 0; i < EQUATIONS; i++) {
+    initvalu_temp[i] =
+        initvalu[i]
+            + h
+                * (b13_1 * finavalu_temp[0][i] + b13_4 * finavalu_temp[3][i]
+                    + b13_5 * finavalu_temp[4][i] + b13_6 * finavalu_temp[5][i]
+                    + b13_7 * finavalu_temp[6][i] + b13_8 * finavalu_temp[7][i]
+                    + b13_9 * finavalu_temp[8][i] + b13_10 * finavalu_temp[9][i]
+                    + finavalu_temp[11][i]);
+  }
 
-	master(	timeinst_temp,
-					initvalu_temp,
-					parameter,
-					finavalu_temp[12],
-					com,
+  master(timeinst_temp, initvalu_temp, parameter, finavalu_temp[12], com,
 
-					d_initvalu,
-					d_finavalu,
-					d_params,
-					d_com, unified);
+  d_initvalu, d_finavalu, d_params, d_com, unified);
 
-	//======================================================================================================================================================
-	//		FINAL VALUE
-	//======================================================================================================================================================
+  //======================================================================================================================================================
+  //		FINAL VALUE
+  //======================================================================================================================================================
 
-	for(i=0; i<EQUATIONS; i++){
-		finavalu[i]= initvalu[i] +  h * (c_1_11 * (finavalu_temp[0][i] + finavalu_temp[10][i])  + c6 * finavalu_temp[5][i] + c_7_8 * (finavalu_temp[6][i] + finavalu_temp[7][i]) + c_9_10 * (finavalu_temp[8][i] + finavalu_temp[9][i]) );
-	}
+  for (i = 0; i < EQUATIONS; i++) {
+    finavalu[i] = initvalu[i]
+        + h
+            * (c_1_11 * (finavalu_temp[0][i] + finavalu_temp[10][i]) + c6 * finavalu_temp[5][i]
+                + c_7_8 * (finavalu_temp[6][i] + finavalu_temp[7][i])
+                + c_9_10 * (finavalu_temp[8][i] + finavalu_temp[9][i]));
+  }
 
-	//======================================================================================================================================================
-	//		RETURN
-	//======================================================================================================================================================
+  //======================================================================================================================================================
+  //		RETURN
+  //======================================================================================================================================================
 
-	for(i=0; i<EQUATIONS; i++){
-		error[i] = fabs(err_factor * (finavalu_temp[0][i] + finavalu_temp[10][i] - finavalu_temp[11][i] - finavalu_temp[12][i]));
-	}
+  for (i = 0; i < EQUATIONS; i++) {
+    error[i] = fabs(
+        err_factor
+            * (finavalu_temp[0][i] + finavalu_temp[10][i] - finavalu_temp[11][i]
+                - finavalu_temp[12][i]));
+  }
 
-	//======================================================================================================================================================
-	//		DEALLOCATION
-	//======================================================================================================================================================
+  //======================================================================================================================================================
+  //		DEALLOCATION
+  //======================================================================================================================================================
 
   if (unified) {
     checkCudaErrors(cudaFree(initvalu_temp));

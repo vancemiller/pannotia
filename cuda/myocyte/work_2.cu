@@ -1,7 +1,9 @@
 //====================================================================================================100
 //		DEFINE / INCLUDE
 //====================================================================================================100
-
+#include <errno.h>
+#include <stdint.h>
+#include <string.h>
 #include "helper_cuda.h"
 #include "kernel_fin_2.cu"
 #include "kernel_ecc_2.cu"
@@ -10,29 +12,23 @@
 #include "embedded_fehlberg_7_8_2.cu"
 #include "solver_2.cu"
 
-//====================================================================================================100
-//		MAIN FUNCTION
-//====================================================================================================100
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+}
+
+#define ELAPSED(start, end) \
+  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 int work_2(int xmax, int workload, bool unified) {
 
-  //================================================================================80
-  //		VARIABLES
-  //================================================================================80
-
-  //============================================================60
-  //		TIME
-  //============================================================60
-
-  long long time0;
-  long long time1;
-  long long time2;
-  long long time3;
-  long long time4;
-  long long time5;
-  long long time6;
-
-  time0 = get_time();
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
 
   //============================================================60
   //		COUNTERS, POINTERS
@@ -88,8 +84,6 @@ int work_2(int xmax, int workload, bool unified) {
   dim3 blocks;
   int blocks_x;
 
-  time1 = get_time();
-
   //================================================================================80
   // 	ALLOCATE MEMORY
   //================================================================================80
@@ -98,9 +92,12 @@ int work_2(int xmax, int workload, bool unified) {
   //		MEMORY CHECK
   //============================================================60
 
-  memory = workload*(xmax+1)*EQUATIONS*4;
-  if(memory>1000000000){
-    printf("ERROR: trying to allocate more than 1.0GB of memory, decrease workload and span parameters or change memory parameter\n");
+  TIMESTAMP(t0);
+
+  memory = workload * (xmax + 1) * EQUATIONS * 4;
+  if (memory > 1000000000) {
+    printf(
+        "ERROR: trying to allocate more than 1.0GB of memory, decrease workload and span parameters or change memory parameter\n");
     return 0;
   }
 
@@ -112,28 +109,28 @@ int work_2(int xmax, int workload, bool unified) {
   //		X/Y INPUTS/OUTPUTS, PARAMS INPUTS
   //========================================40
 
-  y_mem = workload * (xmax+1) * EQUATIONS * sizeof(float);
+  y_mem = workload * (xmax + 1) * EQUATIONS * sizeof(float);
   if (unified) {
     checkCudaErrors(cudaMallocManaged(&y, y_mem));
   } else {
     y = (float *) malloc(y_mem);
-    checkCudaErrors(cudaMalloc((void **)&d_y, y_mem));
+    checkCudaErrors(cudaMalloc((void **) &d_y, y_mem));
   }
 
-  x_mem = workload * (xmax+1) * sizeof(float);
+  x_mem = workload * (xmax + 1) * sizeof(float);
   if (unified) {
     checkCudaErrors(cudaMallocManaged(&x, x_mem));
   } else {
     x = (float *) malloc(x_mem);
-    checkCudaErrors(cudaMalloc((void **)&d_x, x_mem));
+    checkCudaErrors(cudaMalloc((void **) &d_x, x_mem));
   }
 
   params_mem = workload * PARAMETERS * sizeof(float);
   if (unified) {
     checkCudaErrors(cudaMallocManaged(&params, params_mem));
   } else {
-    params= (float *) malloc(params_mem);
-    checkCudaErrors(cudaMalloc((void **)&d_params, params_mem));
+    params = (float *) malloc(params_mem);
+    checkCudaErrors(cudaMalloc((void **) &d_params, params_mem));
   }
 
   //========================================40
@@ -141,109 +138,83 @@ int work_2(int xmax, int workload, bool unified) {
   //========================================40
 
   com_mem = workload * 3 * sizeof(float);
-  checkCudaErrors(cudaMalloc((void **)&d_com, com_mem));
+  checkCudaErrors(cudaMalloc((void **) &d_com, com_mem));
 
   err_mem = workload * EQUATIONS * sizeof(float);
-  checkCudaErrors(cudaMalloc((void **)&d_err, err_mem));
+  checkCudaErrors(cudaMalloc((void **) &d_err, err_mem));
 
   scale_mem = workload * EQUATIONS * sizeof(float);
-  checkCudaErrors(cudaMalloc((void **)&d_scale, scale_mem));
+  checkCudaErrors(cudaMalloc((void **) &d_scale, scale_mem));
 
   yy_mem = workload * EQUATIONS * sizeof(float);
-  checkCudaErrors(cudaMalloc((void **)&d_yy, yy_mem));
+  checkCudaErrors(cudaMalloc((void **) &d_yy, yy_mem));
 
   initvalu_temp_mem = workload * EQUATIONS * sizeof(float);
-  checkCudaErrors(cudaMalloc((void **)&d_initvalu_temp, initvalu_temp_mem));
+  checkCudaErrors(cudaMalloc((void **) &d_initvalu_temp, initvalu_temp_mem));
 
-  finavalu_temp_mem = workload * 13* EQUATIONS * sizeof(float);
-  checkCudaErrors(cudaMalloc((void **)&d_finavalu_temp, finavalu_temp_mem));
+  finavalu_temp_mem = workload * 13 * EQUATIONS * sizeof(float);
+  checkCudaErrors(cudaMalloc((void **) &d_finavalu_temp, finavalu_temp_mem));
 
-  time2 = get_time();
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
 
   //================================================================================80
   // 	READ FROM FILES OR SET INITIAL VALUES
   //================================================================================80
 
-  //========================================40
-  //		X
-  //========================================40
-
-  for(i=0; i<workload; i++){
-    pointer = i * (xmax+1) + 0;
+  for (i = 0; i < workload; i++) {
+    pointer = i * (xmax + 1) + 0;
     x[pointer] = 0;
   }
+  for (i = 0; i < workload; i++) {
+    pointer = i * ((xmax + 1) * EQUATIONS) + 0 * (EQUATIONS);
+    read("../../data/myocyte/y.txt", &y[pointer], 91, 1, 0);
+  }
+  for (i = 0; i < workload; i++) {
+    pointer = i * PARAMETERS;
+    read("../../data/myocyte/params.txt", &params[pointer], 18, 1, 0);
+  }
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
+
   if (unified) {
     d_x = x;
-  } else {
-    checkCudaErrors(cudaMemcpy(d_x, x, x_mem, cudaMemcpyHostToDevice));
-  }
-
-  //========================================40
-  //		Y
-  //========================================40
-
-  for(i=0; i<workload; i++){
-    pointer = i*((xmax+1)*EQUATIONS) + 0*(EQUATIONS);
-    read("../../data/myocyte/y.txt",
-        &y[pointer],
-        91,
-        1,
-        0);
-  }
-  if (unified) {
     d_y = y;
-  } else {
-    checkCudaErrors(cudaMemcpy(d_y, y, y_mem, cudaMemcpyHostToDevice));
-  }
-
-  //========================================40
-  //		PARAMS
-  //========================================40
-
-  for(i=0; i<workload; i++){
-    pointer = i*PARAMETERS;
-    read("../../data/myocyte/params.txt",
-        &params[pointer],
-        18,
-        1,
-        0);
-  }
-  if (unified) {
     d_params = params;
   } else {
+    checkCudaErrors(cudaMemcpy(d_x, x, x_mem, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(d_y, y, y_mem, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_params, params, params_mem, cudaMemcpyHostToDevice));
   }
 
-  time3 = get_time();
+  TIMESTAMP(t3);
+  time_copy_in += ELAPSED(t2, t3);
 
   //================================================================================80
   //		EXECUTION IF THERE ARE MANY WORKLOADS
   //================================================================================80
 
-  if(workload == 1){
+  if (workload == 1) {
     threads.x = 32;																			// define the number of threads in the block
     threads.y = 1;
     blocks.x = 4;																				// define the number of blocks in the grid
     blocks.y = 1;
-  }
-  else{
+  } else {
     threads.x = NUMBER_THREADS;												// define the number of threads in the block
     threads.y = 1;
-    blocks_x = workload/threads.x;
-    if (workload % threads.x != 0){												// compensate for division remainder above by adding one grid
+    blocks_x = workload / threads.x;
+    if (workload % threads.x != 0) {	// compensate for division remainder above by adding one grid
       blocks_x = blocks_x + 1;
     }
     blocks.x = blocks_x;																	// define the number of blocks in the grid
     blocks.y = 1;
   }
 
-  solver_2<<<blocks, threads>>>(	workload,
+  solver_2<<<blocks, threads>>>( workload,
       xmax,
-
       d_x,
       d_y,
       d_params,
-
       d_com,
       d_err,
       d_scale,
@@ -251,10 +222,8 @@ int work_2(int xmax, int workload, bool unified) {
       d_initvalu_temp,
       d_finavalu_temp);
 
-  // cudaThreadSynchronize();
-  // printf("CUDA error: %s\n", cudaGetErrorString(cudaGetLastError()));
-
-  time4 = get_time();
+  TIMESTAMP(t4);
+  time_kernel += ELAPSED(t3, t4);
 
   //================================================================================80
   //		COPY DATA BACK TO CPU
@@ -264,7 +233,8 @@ int work_2(int xmax, int workload, bool unified) {
     checkCudaErrors(cudaMemcpy(x, d_x, x_mem, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(y, d_y, y_mem, cudaMemcpyDeviceToHost));
   }
-  time5 = get_time();
+  TIMESTAMP(t5);
+  time_copy_out += ELAPSED(t4, t5);
 
   //================================================================================80
   //		PRINT RESULTS (ENABLE SELECTIVELY FOR TESTING ONLY)
@@ -298,6 +268,7 @@ int work_2(int xmax, int workload, bool unified) {
   //		X/Y INPUTS/OUTPUTS, PARAMS INPUTS
   //============================================================60
 
+  TIMESTAMP(t6);
   if (unified) {
     checkCudaErrors(cudaFree(y));
     checkCudaErrors(cudaFree(x));
@@ -326,21 +297,21 @@ int work_2(int xmax, int workload, bool unified) {
   checkCudaErrors(cudaFree(d_initvalu_temp));
   checkCudaErrors(cudaFree(d_finavalu_temp));
 
-  time6= get_time();
+  TIMESTAMP(t7);
+  time_free += ELAPSED(t6, t7);
 
   //================================================================================80
   //		DISPLAY TIMING
   //================================================================================80
 
-  printf("Time spent in different stages of the application:\n");
-  printf("%.12f s, %.12f %% : SETUP VARIABLES\n", 															(float) (time1-time0) / 1000000, (float) (time1-time0) / (float) (time6-time0) * 100);
-  printf("%.12f s, %.12f %% : ALLOCATE CPU MEMORY AND GPU MEMORY\n", 				(float) (time2-time1) / 1000000, (float) (time2-time1) / (float) (time6-time0) * 100);
-  printf("%.12f s, %.12f %% : READ DATA FROM FILES, COPY TO GPU MEMORY\n", 		(float) (time3-time2) / 1000000, (float) (time3-time2) / (float) (time6-time0) * 100);
-  printf("%.12f s, %.12f %% : RUN GPU KERNEL\n", 															(float) (time4-time3) / 1000000, (float) (time4-time3) / (float) (time6-time0) * 100);
-  printf("%.12f s, %.12f %% : COPY GPU DATA TO CPU MEMORY\n", 								(float) (time5-time4) / 1000000, (float) (time5-time4) / (float) (time6-time0) * 100);
-  printf("%.12f s, %.12f %% : FREE MEMORY\n", 																(float) (time6-time5) / 1000000, (float) (time6-time5) / (float) (time6-time0) * 100);
-  printf("Total time:\n");
-  printf("%.12f s\n", 																											(float) (time6-time0) / 1000000);
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
 
   //====================================================================================================100
   //		END OF FILE

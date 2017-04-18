@@ -11,7 +11,7 @@
 // Myocyte application models cardiac myocyte (heart muscle cell) and simulates its behavior according to the work by Saucerman and Bers [8]. The model integrates
 // cardiac myocyte electrical activity with the calcineurin pathway, which is a key aspect of the development of heart failure. The model spans large number of temporal
 // scales to reflect how changes in heart rate as observed during exercise or stress contribute to calcineurin pathway activation, which ultimately leads to the expression
-// of numerous genes that remodel the heart’s structure. It can be used to identify potential therapeutic targets that may be useful for the treatment of heart failure.
+// of numerous genes that remodel the heartï¿½s structure. It can be used to identify potential therapeutic targets that may be useful for the treatment of heart failure.
 // Biochemical reactions, ion transport and electrical activity in the cell are modeled with 91 ordinary differential equations (ODEs) that are determined by more than 200
 // experimentally validated parameters. The model is simulated by solving this group of ODEs for a specified time interval. The process of ODE solving is based on the
 // causal relationship between values of ODEs at different time steps, thus it is mostly sequential. At every dynamically determined time step, the solver evaluates the
@@ -87,109 +87,82 @@
 #include "define.c"
 
 #include "file.c"
-#include "timer.c"
 
-#include "work.cu"
 #include "work_2.cu"
 
 //====================================================================================================100
 //		MAIN FUNCTION
 //====================================================================================================100
 
-int main(int argc, char *argv []){
+int main(int argc, char *argv[]) {
 
-	//================================================================================80
-	//		VARIABLES
-	//================================================================================80
+  //================================================================================80
+  //		VARIABLES
+  //================================================================================80
 
-	//============================================================60
-	//		COMMAND LINE PARAMETERS
-	//============================================================60
+  //============================================================60
+  //		COMMAND LINE PARAMETERS
+  //============================================================60
 
-	int xmax;
-	int workload;
-	int mode;
+  int xmax;
+  int workload;
   bool unified;
 
-	//================================================================================80
-	// 	GET INPUT PARAMETERS
-	//================================================================================80
+  //================================================================================80
+  // 	GET INPUT PARAMETERS
+  //================================================================================80
 
-	//============================================================60
-	//		CHECK NUMBER OF ARGUMENTS
-	//============================================================60
+  //============================================================60
+  //		CHECK NUMBER OF ARGUMENTS
+  //============================================================60
 
-	if(argc < 4){
-		printf("ERROR: %d is the incorrect number of arguments, the number of arguments must be 3\n", argc-1);
-		return 0;
-	}
+  if (argc < 3) {
+    printf("ERROR: %d is the incorrect number of arguments, the number of arguments must be 2 or 3\n",
+        argc - 1);
+    return 0;
+  }
 
-	//============================================================60
-	//		GET AND CHECK PARTICULAR ARGUMENTS
-	//============================================================60
+  //============================================================60
+  //		GET AND CHECK PARTICULAR ARGUMENTS
+  //============================================================60
 
-	else{
+  else {
 
-		//========================================40
-		//		SPAN
-		//========================================40
+    //========================================40
+    //		SPAN
+    //========================================40
 
-		xmax = atoi(argv[1]);
-		if(xmax<0){
-			printf("ERROR: %d is the incorrect end of simulation interval, use numbers > 0\n", xmax);
-			return 0;
-		}
+    xmax = atoi(argv[1]);
+    if (xmax < 0) {
+      printf("ERROR: %d is the incorrect end of simulation interval, use numbers > 0\n", xmax);
+      return 0;
+    }
 
-		//========================================40
-		//		WORKLOAD
-		//========================================40
+    //========================================40
+    //		WORKLOAD
+    //========================================40
 
-		workload = atoi(argv[2]);
-		if(workload<0){
-			printf("ERROR: %d is the incorrect number of instances of simulation, use numbers > 0\n", workload);
-			return 0;
-		}
+    workload = atoi(argv[2]);
+    if (workload < 0) {
+      printf("ERROR: %d is the incorrect number of instances of simulation, use numbers > 0\n",
+          workload);
+      return 0;
+    }
 
-		//========================================40
-		//		MODE
-		//========================================40
+    unified = argc == 4;
 
-		mode = 0;
-		mode = atoi(argv[3]);
-		if(mode != 0 && mode != 1){
-			printf("ERROR: %d is the incorrect mode, it should be omitted or equal to 0 or 1\n", mode);
-			return 0;
-		}
+  }
 
-    unified = argc == 5;
+  //================================================================================80
+  //		EXECUTION IF THERE ARE MANY WORKLOADS, PARALLELIZE ACROSS WORKLOADS
+  //================================================================================80
 
-	}
-
-	//================================================================================80
-	//		EXECUTION IF THERE IS 1 WORKLOAD, PARALLELIZE INSIDE 1 WORKLOAD
-	//================================================================================80
-
-	if(mode == 0){
-
-		work(	xmax,
-					workload, unified);
-
-	}
-
-	//================================================================================80
-	//		EXECUTION IF THERE ARE MANY WORKLOADS, PARALLELIZE ACROSS WORKLOADS
-	//================================================================================80
-
-	else{
-
-		work_2(xmax, workload, unified);
-
-	}
+  work_2(xmax, workload, unified);
 
 //====================================================================================================100
 //		END OF FILE
 //====================================================================================================100
 
-	return 0;
+  return 0;
 
 }
