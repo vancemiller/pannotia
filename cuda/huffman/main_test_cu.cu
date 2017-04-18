@@ -23,42 +23,52 @@
 #include "pack_kernels.cu"
 #include "cpuencode.h"
 
-long long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
 }
-void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks=1, bool unified=false);
+
+#define ELAPSED(start, end) \
+  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+
+void runVLCTest(char *file_name, uint num_block_threads, bool unified=false, uint num_blocks=1);
 
 extern "C" void cpu_vlc_encode(unsigned int* indata, unsigned int num_elements, unsigned int* outdata, unsigned int *outsize, unsigned int *codewords, unsigned int* codewordlens);
 
 int main(int argc, char* argv[]){
   unsigned int num_block_threads = 256;
   if (argc > 2) {
-    bool unified = argv[1];
+    bool unified = (bool) (atoi(argv[1]) != 0);
     for (int i=2; i<argc; i++) {
       runVLCTest(argv[i], num_block_threads, unified);
     }
-  } else {
-    bool unified = false;
-    if (argc == 2) {
-      unified = argv[1];
-    }
+  } else if (argc == 2) {
+    bool unified = (bool) (atoi(argv[1]) != 0);
     runVLCTest(NULL, num_block_threads, 1024, unified);
   }
   checkCudaErrors(cudaThreadExit());
   return 0;
 }
 
-void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool unified) {
+void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_blocks) {
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
   printf("CUDA! Starting VLC Tests!\n");
   unsigned int num_elements; //uint num_elements = num_blocks * num_block_threads;
   unsigned int mem_size; //uint mem_size = num_elements * sizeof(int);
   unsigned int symbol_type_size = sizeof(int);
   //////// LOAD DATA ///////////////
   double H; // entropy
+  TIMESTAMP(t0);
   initParams(file_name, num_block_threads, num_blocks, num_elements, mem_size, symbol_type_size);
   printf("Parameters: num_elements: %d, num_blocks: %d, num_block_threads: %d\n----------------------------\n", num_elements, num_blocks, num_block_threads);
+  TIMESTAMP(t1);
+  time_serial += ELAPSED(t0, t1);
   ////////LOAD DATA ///////////////
   uint	*sourceData;
   uint	*destData;
@@ -84,6 +94,9 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
 
   uint	*cindex2=	(uint*) malloc(num_blocks*sizeof(int));
 
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
+
   memset(sourceData,   0, mem_size);
   memset(destData,     0, mem_size);
   memset(crefData,     0, mem_size);
@@ -95,6 +108,9 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
   memset(cindex2, 0, num_blocks*sizeof(int));
   //////// LOAD DATA ///////////////
   loadData(file_name, sourceData, codewords, codewordlens, num_elements, mem_size, H);
+
+  TIMESTAMP(t3);
+  time_serial += ELAPSED(t2, t3);
 
   //////// LOAD DATA ///////////////
 
@@ -120,6 +136,9 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
   checkCudaErrors(cudaMalloc((void**)&d_cindex,         num_blocks*sizeof(unsigned int)));
   checkCudaErrors(cudaMalloc((void**)&d_cindex2,        num_blocks*sizeof(unsigned int)));
 
+  TIMESTAMP(t4);
+  time_malloc += ELAPSED(t3, t4);
+
   if (unified) {
     d_sourceData = sourceData;
     d_codewords = codewords;
@@ -131,6 +150,8 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
     checkCudaErrors(cudaMemcpy(d_codewordlens,	codewordlens,	NUM_SYMBOLS*symbol_type_size,	cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_destData,		destData,		mem_size,		cudaMemcpyHostToDevice));
   }
+  TIMESTAMP(t5);
+  time_copy_in += ELAPSED(t4, t5);
 
   dim3 grid_size(num_blocks,1,1);
   dim3 block_size(num_block_threads, 1, 1);
@@ -141,11 +162,7 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
 
   //////////////////* CPU ENCODER *///////////////////////////////////
   unsigned int refbytesize;
-  long long timer = get_time();
   cpu_vlc_encode((unsigned int*)sourceData, num_elements, (unsigned int*)crefData,  &refbytesize, codewords, codewordlens);
-  float msec = (float)((get_time() - timer)/1000.0);
-  printf("CPU Encoding time (CPU): %f (ms)\n", msec);
-  printf("CPU Encoded to %d [B]\n", refbytesize);
   unsigned int num_ints = refbytesize/4 + ((refbytesize%4 ==0)?0:1);
   //////////////////* END CPU *///////////////////////////////////
 
@@ -160,25 +177,27 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
 
+  TIMESTAMP(t6);
+  time_serial += ELAPSED(t5, t6);
+
   cudaEventRecord( start, 0 );
   for (int i=0; i<NT; i++) {
     vlc_encode_kernel_sm64huff<<<grid_size, block_size, sm_size>>>(d_sourceData, d_codewords, d_codewordlens,
-#ifdef TESTING
         d_cw32, d_cw32len, d_cw32idx,
-#endif
         d_destData, d_cindex); //testedOK2
   }
   cudaThreadSynchronize();
   cudaEventRecord( stop, 0 ) ;
   cudaEventSynchronize( stop ) ;
-  float   elapsedTime;
+  TIMESTAMP(t7);
+  time_kernel += ELAPSED(t6, t7);
+  float elapsedTime;
   cudaEventElapsedTime( &elapsedTime,
       start, stop ) ;
 
-  printf("GPU Encoding time (SM64HUFF): %f (ms)\n", elapsedTime/NT);
+  printf("CUDA-reported GPU Encoding time (SM64HUFF): %f (ms)\n", elapsedTime/NT);
   //////////////////* END KERNEL *///////////////////////////////////
 
-#ifdef TESTING
   unsigned int num_scan_elements = grid_size.x;
   preallocBlockSums(num_scan_elements);
   cudaMemset(d_destDataPacked, 0, mem_size);
@@ -189,11 +208,19 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
 
   pack2<<< num_scan_elements/16, 16, 0, stream>>>((unsigned int*)d_destData, d_cindex, d_cindex2, (unsigned int*)d_destDataPacked, num_elements/num_scan_elements);
   checkCudaErrors(cudaStreamSynchronize(stream));
+  TIMESTAMP(t8);
+  time_kernel += ELAPSED(t7, t8);
   deallocBlockSums();
+  TIMESTAMP(t9);
+  time_free += ELAPSED(t8, t9);
 
   checkCudaErrors(cudaMemcpy(destData, d_destDataPacked, mem_size, cudaMemcpyDeviceToHost));
+  TIMESTAMP(t10);
+  time_copy_out += ELAPSED(t9, t10);
+
   compare_vectors((unsigned int*)crefData, (unsigned int*)destData, num_ints);
-#endif
+  TIMESTAMP(t11);
+  time_serial += ELAPSED(t10, t11);
 
   if (unified) {
     checkCudaErrors(cudaFree(sourceData));
@@ -208,5 +235,16 @@ void runVLCTest(char *file_name, uint num_block_threads, uint num_blocks, bool u
   checkCudaErrors(cudaFree(d_cw32)); 		checkCudaErrors(cudaFree(d_cw32len)); 	checkCudaErrors(cudaFree(d_cw32idx));
   checkCudaErrors(cudaFree(d_cindex)); checkCudaErrors(cudaFree(d_cindex2));
   free(cindex2);
+  TIMESTAMP(t12);
+  time_free += ELAPSED(t11, t12);
+
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
 }
 
