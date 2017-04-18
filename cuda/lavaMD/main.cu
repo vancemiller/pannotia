@@ -1,72 +1,32 @@
-//========================================================================================================================================================================================================200
-//======================================================================================================================================================150
-//====================================================================================================100
-//==================================================50
-
-//========================================================================================================================================================================================================200
-//	UPDATE
-//========================================================================================================================================================================================================200
-
-//	14 APR 2011 Lukasz G. Szafaryn
-
-//========================================================================================================================================================================================================200
-//	DEFINE/INCLUDE
-//========================================================================================================================================================================================================200
-
-//======================================================================================================================================================150
-//	LIBRARIES
-//======================================================================================================================================================150
+#include <errno.h>
 #include <string.h>
-#include <stdio.h>					// (in path known to compiler)			needed by printf
-#include <stdlib.h>					// (in path known to compiler)			needed by malloc
-#include <stdbool.h>				// (in path known to compiler)			needed by true/false
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
-//======================================================================================================================================================150
-//	UTILITIES
-//======================================================================================================================================================150
+#include "./util/num/num.h"
+#include "./main.h"
+#include "./kernel/kernel_gpu_cuda.cu"
+#include "helper_cuda.h"
 
-#include "./util/timer/timer.h"			// (in path specified here)
-#include "./util/num/num.h"				// (in path specified here)
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+  }
 
-//======================================================================================================================================================150
-//	MAIN FUNCTION HEADER
-//======================================================================================================================================================150
+#define ELAPSED(start, end) \
+  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
-#include "./main.h"						// (in the current directory)
-
-//======================================================================================================================================================150
-//	KERNEL
-//======================================================================================================================================================150
-
-#include "./kernel/kernel_gpu_cuda_wrapper.h"	// (in library path specified here)
-
-//========================================================================================================================================================================================================200
-//	MAIN FUNCTION
-//========================================================================================================================================================================================================200
-
-  int
-main(	int argc,
-    char *argv [])
-{
+int main(int argc, char *argv[]) {
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
 
   printf("thread block size of kernel = %d \n", NUMBER_THREADS);
-  //======================================================================================================================================================150
-  //	CPU/MCPU VARIABLES
-  //======================================================================================================================================================150
-
-  // timer
-  long long time0;
-
-  time0 = get_time();
-
-  // timer
-  long long time1;
-  long long time2;
-  long long time3;
-  long long time4;
-  long long time5;
-  long long time6;
-  long long time7;
 
   // counters
   int i, j, k, l, m, n;
@@ -76,48 +36,45 @@ main(	int argc,
   dim_str dim_cpu;
   box_str* box_cpu;
   FOUR_VECTOR* rv_cpu;
-  fp* qv_cpu;
+  double* qv_cpu;
   FOUR_VECTOR* fv_cpu;
   int nh;
   bool unified = false;
 
-  time1 = get_time();
 
-  //======================================================================================================================================================150
   //	CHECK INPUT ARGUMENTS
-  //======================================================================================================================================================150
 
   // assing default values
   dim_cpu.boxes1d_arg = 1;
 
   // go through arguments
-  for(dim_cpu.cur_arg=1; dim_cpu.cur_arg<argc; dim_cpu.cur_arg++){
+  for (dim_cpu.cur_arg = 1; dim_cpu.cur_arg < argc; dim_cpu.cur_arg++) {
     // check if -boxes1d
     if (strcmp(argv[dim_cpu.cur_arg], "-u") == 0) {
       unified = true;
-    } else if(strcmp(argv[dim_cpu.cur_arg], "-boxes1d")==0){
+    } else if (strcmp(argv[dim_cpu.cur_arg], "-boxes1d") == 0) {
       // check if value provided
-      if(argc>=dim_cpu.cur_arg+1){
+      if (argc >= dim_cpu.cur_arg + 1) {
         // check if value is a number
-        if(isInteger(argv[dim_cpu.cur_arg+1])==1){
-          dim_cpu.boxes1d_arg = atoi(argv[dim_cpu.cur_arg+1]);
-          if(dim_cpu.boxes1d_arg<0){
+        if (isInteger(argv[dim_cpu.cur_arg + 1]) == 1) {
+          dim_cpu.boxes1d_arg = atoi(argv[dim_cpu.cur_arg + 1]);
+          if (dim_cpu.boxes1d_arg < 0) {
             printf("ERROR: Wrong value to -boxes1d parameter, cannot be <=0\n");
             return 0;
           }
-          dim_cpu.cur_arg = dim_cpu.cur_arg+1;
+          dim_cpu.cur_arg = dim_cpu.cur_arg + 1;
         } else {
           // value is not a number
           printf("ERROR: Value to -boxes1d parameter in not a number\n");
           return 0;
         }
       } else {
-      // value not provided
+        // value not provided
         printf("ERROR: Missing value to -boxes1d parameter\n");
         return 0;
       }
     } else {
-    // unknown
+      // unknown
       printf("ERROR: Unknown parameter\n");
       return 0;
     }
@@ -126,19 +83,12 @@ main(	int argc,
   // Print configuration
   printf("Configuration used: boxes1d = %d\n", dim_cpu.boxes1d_arg);
 
-  time2 = get_time();
 
-  //======================================================================================================================================================150
   //	INPUTS
-  //======================================================================================================================================================150
 
   par_cpu.alpha = 0.5;
 
-  time3 = get_time();
-
-  //======================================================================================================================================================150
   //	DIMENSIONS
-  //======================================================================================================================================================150
 
   // total number of boxes
   dim_cpu.number_boxes = dim_cpu.boxes1d_arg * dim_cpu.boxes1d_arg * dim_cpu.boxes1d_arg;
@@ -146,37 +96,40 @@ main(	int argc,
   // how many particles space has in each direction
   dim_cpu.space_elem = dim_cpu.number_boxes * NUMBER_PAR_PER_BOX;
   dim_cpu.space_mem = dim_cpu.space_elem * sizeof(FOUR_VECTOR);
-  dim_cpu.space_mem2 = dim_cpu.space_elem * sizeof(fp);
+  dim_cpu.space_mem2 = dim_cpu.space_elem * sizeof(double);
 
   // box array
   dim_cpu.box_mem = dim_cpu.number_boxes * sizeof(box_str);
 
-  time4 = get_time();
-
-  //======================================================================================================================================================150
   //	SYSTEM MEMORY
-  //======================================================================================================================================================150
 
-  //====================================================================================================100
   //	BOX
-  //====================================================================================================100
 
+  TIMESTAMP(t0);
   // allocate boxes
   if (unified) {
-    cudaMallocManaged(&box_cpu, dim_cpu.box_mem);
+    checkCudaErrors(cudaMallocManaged(&box_cpu, dim_cpu.box_mem));
+    checkCudaErrors(cudaMallocManaged(&rv_cpu, dim_cpu.space_mem));
+    checkCudaErrors(cudaMallocManaged(&qv_cpu, dim_cpu.space_mem2));
+    checkCudaErrors(cudaMallocManaged(&fv_cpu, dim_cpu.space_mem));
   } else {
-    box_cpu = (box_str*)malloc(dim_cpu.box_mem);
+    box_cpu = (box_str*) malloc(dim_cpu.box_mem);
+    rv_cpu = (FOUR_VECTOR*)malloc(dim_cpu.space_mem);
+    qv_cpu = (double*) malloc(dim_cpu.space_mem2);
+    fv_cpu = (FOUR_VECTOR*) malloc(dim_cpu.space_mem);
   }
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
 
   // initialize number of home boxes
   nh = 0;
 
   // home boxes in z direction
-  for(i=0; i<dim_cpu.boxes1d_arg; i++){
+  for (i = 0; i < dim_cpu.boxes1d_arg; i++) {
     // home boxes in y direction
-    for(j=0; j<dim_cpu.boxes1d_arg; j++){
+    for (j = 0; j < dim_cpu.boxes1d_arg; j++) {
       // home boxes in x direction
-      for(k=0; k<dim_cpu.boxes1d_arg; k++){
+      for (k = 0; k < dim_cpu.boxes1d_arg; k++) {
 
         // current home box
         box_cpu[nh].x = k;
@@ -189,24 +142,28 @@ main(	int argc,
         box_cpu[nh].nn = 0;
 
         // neighbor boxes in z direction
-        for(l=-1; l<2; l++){
+        for (l = -1; l < 2; l++) {
           // neighbor boxes in y direction
-          for(m=-1; m<2; m++){
+          for (m = -1; m < 2; m++) {
             // neighbor boxes in x direction
-            for(n=-1; n<2; n++){
+            for (n = -1; n < 2; n++) {
 
               // check if (this neighbor exists) and (it is not the same as home box)
-              if(		(((i+l)>=0 && (j+m)>=0 && (k+n)>=0)==true && ((i+l)<dim_cpu.boxes1d_arg && (j+m)<dim_cpu.boxes1d_arg && (k+n)<dim_cpu.boxes1d_arg)==true)	&&
-                  (l==0 && m==0 && n==0)==false	){
+              if ((((i + l) >= 0 && (j + m) >= 0 && (k + n) >= 0) == true
+                    && ((i + l) < dim_cpu.boxes1d_arg && (j + m) < dim_cpu.boxes1d_arg
+                      && (k + n) < dim_cpu.boxes1d_arg) == true)
+                  && (l == 0 && m == 0 && n == 0) == false) {
 
                 // current neighbor box
-                box_cpu[nh].nei[box_cpu[nh].nn].x = (k+n);
-                box_cpu[nh].nei[box_cpu[nh].nn].y = (j+m);
-                box_cpu[nh].nei[box_cpu[nh].nn].z = (i+l);
-                box_cpu[nh].nei[box_cpu[nh].nn].number =	(box_cpu[nh].nei[box_cpu[nh].nn].z * dim_cpu.boxes1d_arg * dim_cpu.boxes1d_arg) +
-                  (box_cpu[nh].nei[box_cpu[nh].nn].y * dim_cpu.boxes1d_arg) +
-                  box_cpu[nh].nei[box_cpu[nh].nn].x;
-                box_cpu[nh].nei[box_cpu[nh].nn].offset = box_cpu[nh].nei[box_cpu[nh].nn].number * NUMBER_PAR_PER_BOX;
+                box_cpu[nh].nei[box_cpu[nh].nn].x = (k + n);
+                box_cpu[nh].nei[box_cpu[nh].nn].y = (j + m);
+                box_cpu[nh].nei[box_cpu[nh].nn].z = (i + l);
+                box_cpu[nh].nei[box_cpu[nh].nn].number = (box_cpu[nh].nei[box_cpu[nh].nn].z
+                    * dim_cpu.boxes1d_arg * dim_cpu.boxes1d_arg)
+                  + (box_cpu[nh].nei[box_cpu[nh].nn].y * dim_cpu.boxes1d_arg)
+                  + box_cpu[nh].nei[box_cpu[nh].nn].x;
+                box_cpu[nh].nei[box_cpu[nh].nn].offset = box_cpu[nh].nei[box_cpu[nh].nn].number
+                  * NUMBER_PAR_PER_BOX;
 
                 // increment neighbor box
                 box_cpu[nh].nn = box_cpu[nh].nn + 1;
@@ -224,88 +181,141 @@ main(	int argc,
     } // home boxes in y direction
   } // home boxes in z direction
 
-  //====================================================================================================100
   //	PARAMETERS, DISTANCE, CHARGE AND FORCE
-  //====================================================================================================100
 
   // random generator seed set to random value - time in this case
-  srand(time(NULL));
+  srand (time(NULL));
 
   // input (distances)
-  if (unified) {
-    cudaMallocManaged(&rv_cpu, dim_cpu.space_mem);
-  } else {
-    rv_cpu = (FOUR_VECTOR*)malloc(dim_cpu.space_mem);
-  }
-  for(i=0; i<dim_cpu.space_elem; i=i+1){
-    rv_cpu[i].v = (rand()%10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
-    rv_cpu[i].x = (rand()%10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
-    rv_cpu[i].y = (rand()%10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
-    rv_cpu[i].z = (rand()%10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
+  for (i = 0; i < dim_cpu.space_elem; i = i + 1) {
+    rv_cpu[i].v = (rand() % 10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
+    rv_cpu[i].x = (rand() % 10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
+    rv_cpu[i].y = (rand() % 10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
+    rv_cpu[i].z = (rand() % 10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
   }
 
   // input (charge)
-  if (unified) {
-    cudaMallocManaged(&qv_cpu, dim_cpu.space_mem2);
-  } else {
-    qv_cpu = (fp*)malloc(dim_cpu.space_mem2);
-  }
-  for(i=0; i<dim_cpu.space_elem; i=i+1){
-    qv_cpu[i] = (rand()%10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
+  for (i = 0; i < dim_cpu.space_elem; i = i + 1) {
+    qv_cpu[i] = (rand() % 10 + 1) / 10.0;			// get a number in the range 0.1 - 1.0
   }
 
   // output (forces)
-  if (unified) {
-    cudaMallocManaged(&fv_cpu, dim_cpu.space_mem);
-  } else {
-    fv_cpu = (FOUR_VECTOR*)malloc(dim_cpu.space_mem);
-  }
-  for(i=0; i<dim_cpu.space_elem; i=i+1){
+  for (i = 0; i < dim_cpu.space_elem; i = i + 1) {
     fv_cpu[i].v = 0;								// set to 0, because kernels keeps adding to initial value
     fv_cpu[i].x = 0;								// set to 0, because kernels keeps adding to initial value
     fv_cpu[i].y = 0;								// set to 0, because kernels keeps adding to initial value
     fv_cpu[i].z = 0;								// set to 0, because kernels keeps adding to initial value
   }
 
-  time5 = get_time();
-
-  //======================================================================================================================================================150
   //	KERNEL
-  //======================================================================================================================================================150
 
-  //====================================================================================================100
-  //	GPU_CUDA
-  //====================================================================================================100
+  box_str* d_box_gpu;
+	FOUR_VECTOR* d_rv_gpu;
+	double* d_qv_gpu;
+	FOUR_VECTOR* d_fv_gpu;
 
-  kernel_gpu_cuda_wrapper(par_cpu,
-      dim_cpu,
-      box_cpu,
-      rv_cpu,
-      qv_cpu,
-      fv_cpu, unified);
+	dim3 threads;
+	dim3 blocks;
 
-  time6 = get_time();
+	blocks.x = dim_cpu.number_boxes;
+	blocks.y = 1;
+	threads.x = NUMBER_THREADS;											// define the number of threads in the block
+	threads.y = 1;
 
-  //======================================================================================================================================================150
-  //	SYSTEM MEMORY DEALLOCATION
-  //======================================================================================================================================================150
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
+
+  if (!unified) {
+    cudaMalloc(	(void **)&d_box_gpu,
+          dim_cpu.box_mem);
+
+    cudaMalloc(	(void **)&d_rv_gpu,
+          dim_cpu.space_mem);
+
+    cudaMalloc(	(void **)&d_qv_gpu,
+          dim_cpu.space_mem2);
+
+    cudaMalloc(	(void **)&d_fv_gpu,
+          dim_cpu.space_mem);
+  }
+  TIMESTAMP(t3);
+  time_malloc += ELAPSED(t2, t3);
+
+  if (unified) {
+    d_box_gpu = box_cpu;
+    d_rv_gpu = rv_cpu;
+    d_qv_gpu = qv_cpu;
+    d_fv_gpu = fv_cpu;
+  } else {
+    checkCudaErrors(cudaMemcpy(	d_box_gpu,
+				box_cpu,
+				dim_cpu.box_mem,
+				cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(	d_rv_gpu,
+				rv_cpu,
+				dim_cpu.space_mem,
+				cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(	d_qv_gpu,
+				qv_cpu,
+				dim_cpu.space_mem2,
+				cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(	d_fv_gpu,
+				fv_cpu,
+				dim_cpu.space_mem,
+				cudaMemcpyHostToDevice));
+  }
+
+  TIMESTAMP(t4);
+  time_copy_in += ELAPSED(t3, t4);
+
+	// launch kernel - all boxes
+	kernel_gpu_cuda<<<blocks, threads>>>(	par_cpu,
+											dim_cpu,
+											d_box_gpu,
+											d_rv_gpu,
+											d_qv_gpu,
+											d_fv_gpu);
+
+	checkCudaErrors(cudaThreadSynchronize());
+  TIMESTAMP(t5);
+  time_kernel += ELAPSED(t4, t5);
+
+  if (!unified) {
+    checkCudaErrors(cudaMemcpy(	fv_cpu,
+				d_fv_gpu,
+				dim_cpu.space_mem,
+				cudaMemcpyDeviceToHost));
+  }
+  TIMESTAMP(t6);
+  time_copy_out += ELAPSED(t5, t6);
+
+  if (!unified) {
+    checkCudaErrors(cudaFree(d_rv_gpu));
+    checkCudaErrors(cudaFree(d_qv_gpu));
+    checkCudaErrors(cudaFree(d_fv_gpu));
+    checkCudaErrors(cudaFree(d_box_gpu));
+  }
+  TIMESTAMP(t7);
+  time_free += ELAPSED(t6, t7);
 
   // dump results
 #ifdef OUTPUT
   FILE *fptr;
   fptr = fopen("result.txt", "w");
-  for(i=0; i<dim_cpu.space_elem; i=i+1){
+  for(i=0; i<dim_cpu.space_elem; i=i+1) {
     fprintf(fptr, "%f, %f, %f, %f\n", fv_cpu[i].v, fv_cpu[i].x, fv_cpu[i].y, fv_cpu[i].z);
   }
   fclose(fptr);
 #endif
 
+  TIMESTAMP(t8);
+  time_serial += ELAPSED(t7, t8);
 
   if (unified) {
-    cudaFree(rv_cpu);
-    cudaFree(qv_cpu);
-    cudaFree(fv_cpu);
-    cudaFree(box_cpu);
+    checkCudaErrors(cudaFree(rv_cpu));
+    checkCudaErrors(cudaFree(qv_cpu));
+    checkCudaErrors(cudaFree(fv_cpu));
+    checkCudaErrors(cudaFree(box_cpu));
   } else {
     free(rv_cpu);
     free(qv_cpu);
@@ -313,31 +323,18 @@ main(	int argc,
     free(box_cpu);
   }
 
-  time7 = get_time();
+  TIMESTAMP(t9);
+  time_free += ELAPSED(t8, t9);
 
-  //======================================================================================================================================================150
   //	DISPLAY TIMING
-  //======================================================================================================================================================150
-
-  printf("Time spent in different stages of the application:\n");
-
-  printf("%15.12f s, %15.12f %% : VARIABLES\n",						(float) (time1-time0) / 1000000, (float) (time1-time0) / (float) (time7-time0) * 100);
-  printf("%15.12f s, %15.12f %% : INPUT ARGUMENTS\n", 					(float) (time2-time1) / 1000000, (float) (time2-time1) / (float) (time7-time0) * 100);
-  printf("%15.12f s, %15.12f %% : INPUTS\n",							(float) (time3-time2) / 1000000, (float) (time3-time2) / (float) (time7-time0) * 100);
-  printf("%15.12f s, %15.12f %% : dim_cpu\n", 							(float) (time4-time3) / 1000000, (float) (time4-time3) / (float) (time7-time0) * 100);
-  printf("%15.12f s, %15.12f %% : SYS MEM: ALO\n",						(float) (time5-time4) / 1000000, (float) (time5-time4) / (float) (time7-time0) * 100);
-
-  printf("%15.12f s, %15.12f %% : KERNEL: COMPUTE\n",					(float) (time6-time5) / 1000000, (float) (time6-time5) / (float) (time7-time0) * 100);
-
-  printf("%15.12f s, %15.12f %% : SYS MEM: FRE\n", 					(float) (time7-time6) / 1000000, (float) (time7-time6) / (float) (time7-time0) * 100);
-
-  printf("Total time:\n");
-  printf("%.12f s\n", 												(float) (time7-time0) / 1000000);
-
-  //======================================================================================================================================================150
-  //	RETURN
-  //======================================================================================================================================================150
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
 
   return 0.0;																					// always returns 0.0
-
 }
