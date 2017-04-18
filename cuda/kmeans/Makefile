@@ -21,8 +21,8 @@ ifeq ($(emu),1)
 endif
 
 
-kmeans: cluster.o kmeans.o kmeans_clustering.o kmeans_cuda.o rmse.o
-	$(NVCC) $(NVCC_FLAGS) cluster.o kmeans_clustering.o kmeans_cuda.o rmse.o kmeans.o -o kmeans -L$(CUDA_LIB_DIR) -lcuda -lcudart -lm
+kmeans: cluster.o kmeans_clustering.o kmeans_cuda.o rmse.o
+	$(NVCC) $(NVCC_FLAGS) cluster.o kmeans_clustering.o kmeans_cuda.o rmse.o -o kmeans -L$(CUDA_LIB_DIR) -lcuda -lcudart -lm
 
 %.o: %.c
 	$(CC) $(CC_FLAGS) $< -c

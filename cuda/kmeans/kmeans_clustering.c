@@ -72,48 +72,43 @@
 #define RANDOM_MAX 2147483647
 
 extern int // delta -- had problems when return value was of float type
-kmeansCuda(float  **feature,        /* in: [npoints][nfeatures] */
-    int      nfeatures,       /* number of attributes for each point */
-    int      npoints,       /* number of data points */
-    int      nclusters,       /* number of clusters */
-    int     *membership,        /* which cluster the point belongs to */
-    float  **clusters,        /* coordinates of cluster centers */
-    int     *new_centers_len,   /* number of elements in each cluster */
-    float  **new_centers,        /* sum of elements in each cluster */
-    int unified);
+kmeansCuda(float **feature, /* in: [npoints][nfeatures] */
+int nfeatures, /* number of attributes for each point */
+int npoints, /* number of data points */
+int nclusters, /* number of clusters */
+int *membership, /* which cluster the point belongs to */
+float **clusters, /* coordinates of cluster centers */
+int *new_centers_len, /* number of elements in each cluster */
+float **new_centers, /* sum of elements in each cluster */
+int unified);
 extern double wtime(void);
 
 /*----< kmeans_clustering() >---------------------------------------------*/
-float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
-                          int     nfeatures,
-                          int     npoints,
-                          int     nclusters,
-                          float   threshold,
-                          int    *membership,
-                          int unified) /* out: [npoints] */
+float** kmeans_clustering(float **feature, /* in: [npoints][nfeatures] */
+int nfeatures, int npoints, int nclusters, float threshold, int *membership, int unified) /* out: [npoints] */
 {
-  int      i, j, n = 0;       /* counters */
-  int    loop = 0, temp;
-  int     *new_centers_len; /* [nclusters]: no. of points in each cluster */
-  float    delta;       /* if the point moved */
-  float  **clusters;      /* out: [nclusters][nfeatures] */
-  float  **new_centers;   /* [nclusters][nfeatures] */
+  int i, j, n = 0; /* counters */
+  int loop = 0, temp;
+  int *new_centers_len; /* [nclusters]: no. of points in each cluster */
+  float delta; /* if the point moved */
+  float **clusters; /* out: [nclusters][nfeatures] */
+  float **new_centers; /* [nclusters][nfeatures] */
 
-  int     *initial;     /* used to hold the index of points not yet selected
-                   prevents the "birthday problem" of dual selection (?)
-                   considered holding initial cluster indices, but changed due to
-                   possible, though unlikely, infinite loops */
-  int      initial_points;
-  int    c = 0;
+  int *initial; /* used to hold the index of points not yet selected
+   prevents the "birthday problem" of dual selection (?)
+   considered holding initial cluster indices, but changed due to
+   possible, though unlikely, infinite loops */
+  int initial_points;
+  int c = 0;
 
   /* nclusters should never be > npoints
-     that would guarantee a cluster without points */
+   that would guarantee a cluster without points */
   if (nclusters > npoints)
     nclusters = npoints;
 
   /* allocate space for and initialize returning variable clusters[] */
-  clusters    = (float**) malloc(nclusters *             sizeof(float*));
-  clusters[0] = (float*)  malloc(nclusters * nfeatures * sizeof(float));
+  clusters = (float**) malloc(nclusters * sizeof(float*));
+  clusters[0] = (float*) malloc(nclusters * nfeatures * sizeof(float));
   for (i = 1; i < nclusters; i++)
     clusters[i] = clusters[i - 1] + nfeatures;
 
@@ -130,7 +125,7 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
       clusters[i][j] = feature[initial[n]][j];  // remapped
 
     /* swap the selected index to the end (not really necessary,
-       could just move the end up) */
+     could just move the end up) */
     temp = initial[n];
     initial[n] = initial[initial_points - 1];
     initial[initial_points - 1] = temp;
@@ -145,8 +140,8 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
   /* allocate space for and initialize new_centers_len and new_centers */
   new_centers_len = (int*) calloc(nclusters, sizeof(int));
 
-  new_centers    = (float**) malloc(nclusters *            sizeof(float*));
-  new_centers[0] = (float*)  calloc(nclusters * nfeatures, sizeof(float));
+  new_centers = (float**) malloc(nclusters * sizeof(float*));
+  new_centers[0] = (float*) calloc(nclusters * nfeatures, sizeof(float));
   for (i = 1; i < nclusters; i++)
     new_centers[i] = new_centers[i - 1] + nfeatures;
 
@@ -154,29 +149,28 @@ float** kmeans_clustering(float **feature,    /* in: [npoints][nfeatures] */
   do {
     delta = 0.0;
     // CUDA
-    delta = (float) kmeansCuda(feature,     /* in: [npoints][nfeatures] */
-                               nfeatures,   /* number of attributes for each point */
-                               npoints,     /* number of data points */
-                               nclusters,   /* number of clusters */
-                               membership,    /* which cluster the point belongs to */
-                               clusters,    /* out: [nclusters][nfeatures] */
-                               new_centers_len, /* out: number of points in each cluster */
-                               new_centers,    /* sum of points in each cluster */
-                               unified
-                              );
+    delta = (float) kmeansCuda(feature, /* in: [npoints][nfeatures] */
+    nfeatures, /* number of attributes for each point */
+    npoints, /* number of data points */
+    nclusters, /* number of clusters */
+    membership, /* which cluster the point belongs to */
+    clusters, /* out: [nclusters][nfeatures] */
+    new_centers_len, /* out: number of points in each cluster */
+    new_centers, /* sum of points in each cluster */
+    unified);
 
     /* replace old cluster centers with new_centers */
     /* CPU side of reduction */
     for (i = 0; i < nclusters; i++) {
       for (j = 0; j < nfeatures; j++) {
         if (new_centers_len[i] > 0)
-          clusters[i][j] = new_centers[i][j] / new_centers_len[i];  /* take average i.e. sum/n */
-        new_centers[i][j] = 0.0;  /* set back to 0 */
+          clusters[i][j] = new_centers[i][j] / new_centers_len[i]; /* take average i.e. sum/n */
+        new_centers[i][j] = 0.0; /* set back to 0 */
       }
-      new_centers_len[i] = 0;     /* set back to 0 */
+      new_centers_len[i] = 0; /* set back to 0 */
     }
     c++;
-  } while ((delta > threshold) && (loop++ < 500));  /* makes sure loop terminates */
+  } while ((delta > threshold) && (loop++ < 500)); /* makes sure loop terminates */
   printf("iterated %d times\n", c);
   free(new_centers[0]);
   free(new_centers);
