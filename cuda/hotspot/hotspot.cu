@@ -47,7 +47,7 @@ float amb_temp = 80.0;
   }
 
 #define ELAPSED(start, end) \
-  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
@@ -174,9 +174,17 @@ int main(int argc, char** argv) {
 
   VPRINT(args.verbose, "WG size of kernel = %d X %d\n", BLOCK_SIZE, BLOCK_SIZE);
 
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
+
   // add one iteration will extend the pyramid base by 2 per each borderline
 # define EXPAND_RATE 2
 
+  TIMESTAMP(t0);
   const int borderCols = (args.height) * EXPAND_RATE / 2;
   const int borderRows = borderCols;
   const int smallBlockCol = BLOCK_SIZE - (args.height) * EXPAND_RATE;
@@ -190,6 +198,8 @@ int main(int argc, char** argv) {
   float* d_temperature[2];
   float* d_power;
 
+  TIMESTAMP(t1);
+  time_serial += ELAPSED(t0, t1);
   if (args.unified) {
     checkCudaErrors(cudaMallocManaged(&temperature, size * sizeof(float)));
     checkCudaErrors(cudaMallocManaged(&power, size * sizeof(float)));
@@ -203,6 +213,8 @@ int main(int argc, char** argv) {
     checkCudaErrors(cudaMalloc(&d_temperature[1], sizeof(float) * size));
     checkCudaErrors(cudaMalloc(&d_power, sizeof(float) * size));
   }
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
 
   if (!(power && temperature && output)) {
     fprintf(stderr, "Unable to allocate memory\n");
@@ -213,10 +225,12 @@ int main(int argc, char** argv) {
       "blockGrid:[%d, %d]\ntargetBlock:[%d, %d]\n", args.height, args.base, args.base,
       borderCols, borderRows, blockCols, blockRows, smallBlockCol, smallBlockRow);
 
-  TIMESTAMP(start);
 
   readinput(temperature, args.base, args.base, args.temperature);
   readinput(power, args.base, args.base, args.power);
+
+  TIMESTAMP(t3);
+  time_serial += ELAPSED(t2, t3);
 
   if (args.unified) {
     d_temperature[0] = temperature;
@@ -229,13 +243,15 @@ int main(int argc, char** argv) {
           stream));
     checkCudaErrors(cudaStreamSynchronize(stream));
   }
+  TIMESTAMP(t4);
+  time_copy_in += ELAPSED(t3, t4);
 
   VPRINT(args.verbose, "Start computing the transient temperature\n");
-  TIMESTAMP(kernel_start);
   float* result = compute_tran_temp(d_power, d_temperature, args.base, args.base,
       args.iterations, args.height, blockCols, blockRows, borderCols, borderRows, stream);
-  TIMESTAMP(kernel_stop);
   VPRINT(args.verbose, "Ending simulation\n");
+  TIMESTAMP(t5);
+  time_kernel += ELAPSED(t4, t5);
 
   if (!args.unified) {
     checkCudaErrors(cudaMemcpyAsync(output, result, sizeof(float) * size, cudaMemcpyDeviceToHost,
@@ -244,8 +260,13 @@ int main(int argc, char** argv) {
     // copy to host memory but reassign pointer so we can use the same name for unified/normal
     result = output;
   }
+  TIMESTAMP(t6);
+  time_copy_out += ELAPSED(t5, t6);
 
   writeoutput(result, args.base, args.base, args.output);
+
+  TIMESTAMP(t7);
+  time_serial += ELAPSED(t6, t7);
 
   if (args.unified) {
     checkCudaErrors(cudaFree(temperature));
@@ -259,12 +280,17 @@ int main(int argc, char** argv) {
     free(power);
     free(output);
   }
+  TIMESTAMP(t8);
+  time_free += ELAPSED(t7, t8);
 
-  TIMESTAMP(stop);
-  long long total_time = ELAPSED(start, stop);
-  long long kernel_time = ELAPSED(kernel_start, kernel_stop);
-  printf("\nTime total (including memory transfers)\t%f ms\n", (double) total_time * 1e-6);
-  printf("Time for CUDA kernels:\t%f ms\n", (double) kernel_time * 1e-6);
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
 }
 
 void writeoutput(float* vect, int rows, int cols, char* file) {
