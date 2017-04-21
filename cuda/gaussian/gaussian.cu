@@ -52,12 +52,20 @@
   }
 
 #define ELAPSED(start, end) \
-  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
     fprintf(stdout, format, ## __VA_ARGS__);\
   }
+
+// timing globals
+long long time_serial = 0;
+long long time_copy_in = 0;
+long long time_copy_out = 0;
+long long time_kernel = 0;
+long long time_malloc = 0;
+long long time_free = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                                //
@@ -138,7 +146,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector_b,
     float** matrix_m);
-long long ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, float* matrix_m);
+void ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, float* matrix_m);
 void BackSub(int size, float** result, float* matrix_a, float* vector_b, float* matrix_m);
 __global__ void Fan1(float *m, float *a, int size, int t);
 __global__ void Fan2(float *m, float *a, float *b,int size, int t);
@@ -202,8 +210,7 @@ int main(int argc, char** argv) {
   float* vector_b;
   float* matrix_m;
 
-  //begin timing
-  TIMESTAMP(start);
+  TIMESTAMP(t0);
 
   if (args.size) {
     VPRINT(args.verbose, "Create matrix internally in parse, size = %d \n", (int) args.size);
@@ -219,21 +226,25 @@ int main(int argc, char** argv) {
       matrix_m = (float*) malloc(args.size * args.size * sizeof(float));
     }
     assert(matrix_a && vector_b && matrix_m);
+    TIMESTAMP(t1);
+    time_malloc += ELAPSED(t0, t1);
 
     // initialize data
     create_matrix(matrix_a, args.size);
     memset(vector_b, 1.0, args.size);
     memset(matrix_m, 0.0, args.size * args.size);
+    TIMESTAMP(t2);
+    time_serial += ELAPSED(t1, t2);
   } else {
     // file input
     VPRINT(args.verbose, "Read file from %s \n", args.file);
     InitFromFile(args.file, args.unified, &matrix_a, &vector_b, &matrix_m);
   }
 
-
   // run kernels
-  long long kernel_time = ForwardSub(args.unified, args.unified, matrix_a, vector_b, matrix_m);
+  ForwardSub(args.unified, args.unified, matrix_a, vector_b, matrix_m);
 
+  TIMESTAMP(t1);
   if (args.verbose) {
     printf("Matrix m is: \n");
     PrintMatrix(matrix_m, args.size, args.size);
@@ -247,16 +258,13 @@ int main(int argc, char** argv) {
   BackSub(args.size, &result, matrix_a, vector_b, matrix_m);
 
   //end timing
-  TIMESTAMP(stop);
-  long long total_time = ELAPSED(start, stop);
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
 
   if (args.verbose) {
     printf("The final solution is: \n");
     PrintVector(result, args.size);
   }
-
-  printf("\nTime total (including memory transfers)\t%f ms\n", (double) total_time * 1e-6);
-  printf("Time for CUDA kernels:\t%f ms\n", (double) kernel_time * 1e-6);
 
   if (args.unified) {
     checkCudaErrors(cudaFree(matrix_m));
@@ -268,6 +276,17 @@ int main(int argc, char** argv) {
     free(vector_b);
   }
   free(result);
+  TIMESTAMP(t3);
+  time_free += ELAPSED(t2, t3);
+
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t3) * 1e-6);
 }
 
 
@@ -277,6 +296,7 @@ int main(int argc, char** argv) {
  **------------------------------------------------------
  */
 void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector_b, float** matrix_m) {
+  TIMESTAMP(t0);
   FILE* fp = fopen(filename, "r");
   if (!fp) {
     fprintf(stderr, "Invalid input file: %s\n", strerror(errno));
@@ -289,7 +309,8 @@ void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector
     fprintf(stderr, "Improperly formatted input file: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
-
+  TIMESTAMP(t1);
+  time_serial += ELAPSED(t0, t1);
   if (unified) {
     checkCudaErrors(cudaMallocManaged(matrix_a, size * size * sizeof(float),
           cudaMemAttachHost));
@@ -302,9 +323,13 @@ void InitFromFile(char *filename, bool unified, float** matrix_a, float** vector
     *matrix_m = (float*) malloc(size * size * sizeof(float));
   }
   assert(*matrix_a && *vector_b && *matrix_m);
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
 
   InitMatrix(fp, *matrix_a, size, size);
   InitVector(fp, *vector_b, size);
+  TIMESTAMP(t3);
+  time_serial += ELAPSED(t2, t3);
 }
 
 /*-------------------------------------------------------
@@ -349,28 +374,32 @@ __global__ void Fan2(float *d_matrix_m, float *d_matrix_a, float *d_vector_b,int
  ** elimination.
  **------------------------------------------------------
  */
-long long ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, float* matrix_m) {
-  cudaStream_t stream;
-  checkCudaErrors(cudaStreamCreate(&stream));
-
+void ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, float* matrix_m) {
   float* d_matrix_m;
   float* d_matrix_a;
   float* d_vector_b;
 
+  TIMESTAMP(t0);
   // allocate memory on GPU
+  if (!unified) {
+    cudaMalloc((void **) &d_matrix_m, size * size * sizeof(float));
+    cudaMalloc((void **) &d_matrix_a, size * size * sizeof(float));
+    cudaMalloc((void **) &d_vector_b, size * sizeof(float));
+  }
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
   if (unified) {
     d_matrix_a = matrix_a;
     d_vector_b = vector_b;
     d_matrix_m = matrix_m;
   } else {
-    cudaMalloc((void **) &d_matrix_m, size * size * sizeof(float));
-    cudaMalloc((void **) &d_matrix_a, size * size * sizeof(float));
-    cudaMalloc((void **) &d_vector_b, size * sizeof(float));
     // copy memory to GPU
     cudaMemcpy(d_matrix_m, matrix_m, size * size * sizeof(float),cudaMemcpyHostToDevice );
     cudaMemcpy(d_matrix_a, matrix_a, size * size * sizeof(float),cudaMemcpyHostToDevice );
     cudaMemcpy(d_vector_b, vector_b, size * sizeof(float),cudaMemcpyHostToDevice );
   }
+  TIMESTAMP(t2);
+  time_copy_in += ELAPSED(t1, t2);
 
   int block_size = MAXBLOCKSIZE;
   int grid_size = (size + block_size - 1) / block_size; // round up
@@ -385,26 +414,31 @@ long long ForwardSub(int size, bool unified, float* matrix_a, float* vector_b, f
   dim3 dimGridXY(gridSize2d, gridSize2d);
 
   // begin timing kernels
-  TIMESTAMP(start);
+  TIMESTAMP(t3);
+  time_serial += ELAPSED(t2, t3);
   for (int i = 0; i < size - 1; i++) {
-    Fan1<<<dimGrid, dimBlock, 0, stream>>>(d_matrix_m, d_matrix_a, size, i);
-    checkCudaErrors(cudaStreamSynchronize(stream));
+    Fan1<<<dimGrid, dimBlock>>>(d_matrix_m, d_matrix_a, size, i);
     Fan2<<<dimGridXY, dimBlockXY>>>(d_matrix_m, d_matrix_a, d_vector_b, size, i);
-    checkCudaErrors(cudaStreamSynchronize(stream));
   }
   // end timing kernels
-  TIMESTAMP(stop);
+  TIMESTAMP(t4);
+  time_kernel += ELAPSED(t3, t4);
 
   if (!unified) {
     // copy memory back to CPU
     cudaMemcpy(matrix_m, d_matrix_m, size * size * sizeof(float),cudaMemcpyDeviceToHost );
     cudaMemcpy(matrix_a, d_matrix_a, size * size * sizeof(float),cudaMemcpyDeviceToHost );
     cudaMemcpy(vector_b, d_vector_b, size * sizeof(float),cudaMemcpyDeviceToHost );
+  }
+  TIMESTAMP(t5);
+  time_copy_out += ELAPSED(t4, t5);
+  if (!unified) {
     cudaFree(d_matrix_m);
     cudaFree(d_matrix_a);
     cudaFree(d_vector_b);
   }
-  return ELAPSED(start, stop);
+  TIMESTAMP(t6);
+  time_free += ELAPSED(t5, t6);
 }
 
 /*------------------------------------------------------
