@@ -36,7 +36,7 @@
   }
 
 #define ELAPSED(start, end) \
-  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
@@ -131,7 +131,14 @@ int main(int argc, char** argv) {
   cudaStream_t stream;
   checkCudaErrors(cudaStreamCreate(&stream));
 
-  TIMESTAMP(start);
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
+
+  TIMESTAMP(t0);
 
   VPRINT(args.verbose, "Reading File\n");
   //Read in Graph from a file
@@ -159,6 +166,8 @@ int main(int argc, char** argv) {
     n_threads_per_block = MAX_THREADS_PER_BLOCK;
   }
 
+  TIMESTAMP(t1);
+  time_serial += ELAPSED(t0, t1);
   // allocate host memory
   Node* h_graph_nodes;
   bool* h_graph_mask;
@@ -176,6 +185,9 @@ int main(int argc, char** argv) {
     h_graph_visited = (bool*) malloc(sizeof(bool) * n_nodes);
   }
   assert(h_graph_nodes && h_graph_mask && h_updating_graph_mask && h_graph_visited);
+
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
 
   // initalize the memory
   for (unsigned int i = 0; i < n_nodes; i++) {
@@ -212,6 +224,9 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
 
+  TIMESTAMP(t3);
+  time_serial += ELAPSED(t2, t3);
+
   int* h_graph_edges;
   if (args.unified) {
     checkCudaErrors(cudaMallocManaged(&h_graph_edges, sizeof(int) * edge_list_size));
@@ -219,6 +234,9 @@ int main(int argc, char** argv) {
     h_graph_edges = (int*) malloc(sizeof(int) * edge_list_size);
   }
   assert(h_graph_edges);
+  TIMESTAMP(t4);
+  time_malloc += ELAPSED(t3, t4);
+
   for (int i = 0; i < edge_list_size; i++) {
     int id, cost;
     ret = fscanf(fp,"%d %d", &id, &cost);
@@ -229,12 +247,26 @@ int main(int argc, char** argv) {
     h_graph_edges[i] = id;
   }
 
+  TIMESTAMP(t5);
+  time_serial += ELAPSED(t4, t5);
+
   // Copy the node list, edge list, masks, and visited nodes to device memory
   Node* d_graph_nodes;
   int* d_graph_edges;
   bool* d_graph_mask;
   bool* d_updating_graph_mask;
   bool* d_graph_visited;
+  if (!args.unified) {
+    checkCudaErrors(cudaMalloc(&d_graph_nodes, sizeof(Node) * n_nodes));
+    checkCudaErrors(cudaMalloc(&d_graph_edges, sizeof(int) * edge_list_size));
+    checkCudaErrors(cudaMalloc(&d_graph_mask, sizeof(bool) * n_nodes));
+    checkCudaErrors(cudaMalloc(&d_updating_graph_mask, sizeof(bool) * n_nodes));
+    checkCudaErrors(cudaMalloc(&d_graph_visited, sizeof(bool) * n_nodes));
+  }
+
+  TIMESTAMP(t6);
+  time_malloc += ELAPSED(t5, t6);
+
   if (args.unified) {
     d_graph_nodes = h_graph_nodes;
     d_graph_edges = h_graph_edges;
@@ -242,12 +274,6 @@ int main(int argc, char** argv) {
     d_updating_graph_mask = h_updating_graph_mask;
     d_graph_visited = h_graph_visited;
   } else {
-    checkCudaErrors(cudaMalloc(&d_graph_nodes, sizeof(Node) * n_nodes));
-    checkCudaErrors(cudaMalloc(&d_graph_edges, sizeof(int) * edge_list_size));
-    checkCudaErrors(cudaMalloc(&d_graph_mask, sizeof(bool) * n_nodes));
-    checkCudaErrors(cudaMalloc(&d_updating_graph_mask, sizeof(bool) * n_nodes));
-    checkCudaErrors(cudaMalloc(&d_graph_visited, sizeof(bool) * n_nodes));
-
     checkCudaErrors(cudaMemcpyAsync(d_graph_nodes, h_graph_nodes, sizeof(Node) * n_nodes,
         cudaMemcpyHostToDevice, stream));
     checkCudaErrors(cudaMemcpyAsync(d_graph_edges, h_graph_edges, sizeof(int) * edge_list_size,
@@ -261,41 +287,43 @@ int main(int argc, char** argv) {
 
     checkCudaErrors(cudaStreamSynchronize(stream));
   }
+  TIMESTAMP(t7);
+  time_copy_in += ELAPSED(t6, t7);
 
   // allocate mem for the result
   int* h_cost;
   int* d_cost;
-  if (args.unified) {
-    checkCudaErrors(cudaMallocManaged(&h_cost, sizeof(int) * n_nodes));
-    assert(h_cost);
-    memset(h_cost, -1, n_nodes);
-    h_cost[source] = 0;
-    d_cost = h_cost;
-  } else {
-    h_cost = (int*) malloc(sizeof(int) * n_nodes);
-    assert(h_cost);
-    memset(h_cost, -1, n_nodes);
-    h_cost[source] = 0;
-    checkCudaErrors(cudaMalloc(&d_cost, sizeof(int) * n_nodes));
-    checkCudaErrors(cudaMemcpyAsync(d_cost, h_cost, sizeof(int) * n_nodes, cudaMemcpyHostToDevice,
-        stream));
-
-    checkCudaErrors(cudaStreamSynchronize(stream));
-  }
-
-  //make a bool to check if the execution is over
   bool* h_done;
   bool* d_done;
   if (args.unified) {
+    checkCudaErrors(cudaMallocManaged(&h_cost, sizeof(int) * n_nodes));
     checkCudaErrors(cudaMallocManaged(&h_done, sizeof(bool)));
-    assert(h_done);
+    assert(h_cost && h_done);
+  } else {
+    h_cost = (int*) malloc(sizeof(int) * n_nodes);
+    checkCudaErrors(cudaMalloc(&d_cost, sizeof(int) * n_nodes));
+    h_done = (bool*) malloc(sizeof(bool));
+    assert(h_cost && h_done);
+    checkCudaErrors(cudaMalloc(&d_done, sizeof(bool)));
+    assert(d_cost && d_done);
+  }
+  TIMESTAMP(t8);
+  time_malloc += ELAPSED(t7, t8);
+
+  if (args.unified) {
+    memset(h_cost, -1, n_nodes);
+    h_cost[source] = 0;
+    d_cost = h_cost;
     d_done = h_done;
   } else {
-    h_done = (bool*) malloc(sizeof(bool));
-    assert(h_done);
-    checkCudaErrors(cudaMalloc(&d_done, sizeof(bool)));
-    assert(d_done);
+    memset(h_cost, -1, n_nodes);
+    h_cost[source] = 0;
+    checkCudaErrors(cudaMemcpyAsync(d_cost, h_cost, sizeof(int) * n_nodes, cudaMemcpyHostToDevice,
+        stream));
+    checkCudaErrors(cudaStreamSynchronize(stream));
   }
+  TIMESTAMP(t9);
+  time_copy_in += ELAPSED(t8, t9);
 
   // setup execution parameters
   const dim3 grid(n_blocks, 1, 1);
@@ -303,40 +331,51 @@ int main(int argc, char** argv) {
 
   int k = 0;
   //Call the Kernel until all the elements of Frontier are not false
-  TIMESTAMP(kernel_start);
   do {
     *h_done = false;
     // if no thread changes this value then the loop stops
     if (!args.unified) {
+      TIMESTAMP(t10);
       checkCudaErrors(cudaMemcpyAsync(d_done, h_done, sizeof(bool), cudaMemcpyHostToDevice,
           stream));
       checkCudaErrors(cudaStreamSynchronize(stream));
+      TIMESTAMP(t11);
+      time_copy_in += ELAPSED(t10, t11);
     }
+
+    TIMESTAMP(t12);
     Kernel<<<grid, threads, 0, stream>>>(d_graph_nodes, d_graph_edges, d_graph_mask,
         d_updating_graph_mask, d_graph_visited, d_cost, n_nodes);
     checkCudaErrors(cudaStreamSynchronize(stream));
     Kernel2<<<grid, threads, 0, stream>>>(d_graph_mask, d_updating_graph_mask, d_graph_visited,
         d_done, n_nodes);
     checkCudaErrors(cudaStreamSynchronize(stream));
+    TIMESTAMP(t13);
+    time_kernel += ELAPSED(t12, t13);
 
     if (!args.unified) {
       checkCudaErrors(cudaMemcpyAsync(h_done, d_done, sizeof(bool), cudaMemcpyDeviceToHost,
           stream));
       checkCudaErrors(cudaStreamSynchronize(stream));
+      TIMESTAMP(t14);
+      time_copy_out += ELAPSED(t13, t14);
     }
     k++;
   } while (*h_done);
 
-  TIMESTAMP(kernel_stop);
   VPRINT(args.verbose, "Kernel Executed %d times\n", k);
 
   // copy result from device to host
   if (!args.unified) {
+    TIMESTAMP(t15);
     checkCudaErrors(cudaMemcpyAsync(h_cost, d_cost, sizeof(int) * n_nodes, cudaMemcpyDeviceToHost,
         stream));
     checkCudaErrors(cudaStreamSynchronize(stream));
+    TIMESTAMP(t16);
+    time_copy_out += ELAPSED(t15, t16);
   }
 
+  TIMESTAMP(t17);
   //Store the result into a file
   FILE* fpo = fopen("result.txt","w");
   if (!fpo) {
@@ -348,6 +387,9 @@ int main(int argc, char** argv) {
   }
   fclose(fpo);
   printf("Result stored in result.txt\n");
+
+  TIMESTAMP(t18);
+  time_serial += ELAPSED(t17, t18);
 
   // cleanup memory
   if (args.unified) {
@@ -374,13 +416,17 @@ int main(int argc, char** argv) {
     checkCudaErrors(cudaFree(d_cost));
     checkCudaErrors(cudaFree(d_done));
   }
+  TIMESTAMP(t19);
+  time_free += ELAPSED(t18, t19);
 
-  TIMESTAMP(stop);
-
-  long long total_time = ELAPSED(start, stop);
-  long long kernel_time = ELAPSED(kernel_start, kernel_stop);
-  printf("\nTime total (including memory transfers)\t%f ms\n", (double) total_time * 1e-6);
-  printf("Time for CUDA kernels:\t%f ms\n", (double) kernel_time * 1e-6);
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t19) * 1e-6);
 }
 
 __global__ void Kernel(Node* g_graph_nodes, int* g_graph_edges, bool* g_graph_mask,
