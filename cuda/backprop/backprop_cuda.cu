@@ -19,12 +19,20 @@
   }
 
 #define ELAPSED(start, end) \
-  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
     fprintf(stdout, format, ## __VA_ARGS__);\
   }
+
+// global timing vars
+long long time_serial = 0;
+long long time_copy_in = 0;
+long long time_copy_out = 0;
+long long time_kernel = 0;
+long long time_malloc = 0;
+long long time_free = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                                //
@@ -140,16 +148,31 @@ int main(int argc, char** argv) {
   int seed = 7;
   srand(seed);
 
+  TIMESTAMP(t0);
   BPNN* net = bpnn_create(args.size, 16, 1, args.unified); // (16, 1 can not be changed)
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
   VPRINT(args.verbose, "Input layer size : %lu\n", args.size);
   for (int i = 0; i < args.size; i++) {
     net->input_units[i] = (float) rand() / RAND_MAX;
   }
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
 
   VPRINT(args.verbose, "Starting training kernel\n");
   bpnn_train_cuda(net, stream, args.unified);
   bpnn_free(net, args.unified);
   VPRINT(args.verbose, "Training done\n");
+  TIMESTAMP(t3);
+
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t3) * 1e-6);
   exit(EXIT_SUCCESS);
 }
 
@@ -299,6 +322,7 @@ BPNN* bpnn_internal_create(int n_in, int n_hidden, int n_out, bool unified) {
 }
 
 void bpnn_free(BPNN* net, bool unified) {
+  TIMESTAMP(t0);
   if (unified) {
     checkCudaErrors(cudaFree(net->input_units));
     checkCudaErrors(cudaFree(net->hidden_units));
@@ -322,8 +346,10 @@ void bpnn_free(BPNN* net, bool unified) {
     free(net->input_prev_weights);
     free(net->hidden_weights);
     free(net->hidden_prev_weights);
-    free(net);  
+    free(net);
   }
+  TIMESTAMP(t1);
+  time_free += ELAPSED(t0, t1);
 }
 
 /*** Creates a new fully-connected network from scratch,
@@ -358,46 +384,52 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
   dim3  grid(1 , num_blocks);
   dim3  threads(16 , 16);
 
-  TIMESTAMP(start);
-
   float* partial_sum;
-  if (unified) {
-    checkCudaErrors(cudaMallocManaged(&partial_sum, num_blocks * WIDTH * sizeof(float)));
-  } else {
-    partial_sum = (float*) malloc(num_blocks * WIDTH * sizeof(float));
-  }
-
   float* input_cuda;
   float* input_hidden_cuda;
   float* output_hidden_cuda;
   float* hidden_partial_sum;
-  
+  TIMESTAMP(t0);
+  if (unified) {
+    checkCudaErrors(cudaMallocManaged(&partial_sum, num_blocks * WIDTH * sizeof(float)));
+  } else {
+    partial_sum = (float*) malloc(num_blocks * WIDTH * sizeof(float));
+    checkCudaErrors(cudaMalloc(&input_cuda, (in + 1) * sizeof(float)));
+    checkCudaErrors(cudaMalloc(&input_hidden_cuda, (in + 1) * (hid + 1) * sizeof(float)));
+    checkCudaErrors(cudaMalloc(&hidden_partial_sum, num_blocks * WIDTH * sizeof(float)));
+  }
+  checkCudaErrors(cudaMalloc(&output_hidden_cuda, (hid + 1) * sizeof(float)));
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
+
+
   if (unified) {
     input_cuda = net->input_units;
     input_hidden_cuda = net->input_weights;
     hidden_partial_sum = partial_sum;
   } else {
-    checkCudaErrors(cudaMalloc(&input_cuda, (in + 1) * sizeof(float)));
-    checkCudaErrors(cudaMalloc(&input_hidden_cuda, (in + 1) * (hid + 1) * sizeof(float)));
     checkCudaErrors(cudaMemcpy(input_cuda, net->input_units, (in + 1) * sizeof(float),
         cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(input_hidden_cuda, net->input_weights, (in + 1) * (hid + 1) *
       sizeof(float), cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMalloc(&hidden_partial_sum, num_blocks * WIDTH * sizeof(float)));
   }
-  checkCudaErrors(cudaMalloc(&output_hidden_cuda, (hid + 1) * sizeof(float)));
-  
+  TIMESTAMP(t2);
+  time_copy_in += ELAPSED(t1, t2);
+
   printf("Performing GPU computation\n");
 
-  TIMESTAMP(kernel_start);
   bpnn_layerforward_CUDA<<<grid, threads, 0, stream>>>(input_cuda, output_hidden_cuda,
       input_hidden_cuda, hidden_partial_sum, in, hid);
   checkCudaErrors(cudaStreamSynchronize(stream));
+  TIMESTAMP(t3);
+  time_kernel += ELAPSED(t2, t3);
 
   if (!unified) {
     checkCudaErrors(cudaMemcpy(partial_sum, hidden_partial_sum, num_blocks * WIDTH * sizeof(float),
         cudaMemcpyDeviceToHost));
   }
+  TIMESTAMP(t4);
+  time_copy_out += ELAPSED(t3, t4);
 
   for (int j = 1; j <= hid; j++) {
     float sum = 0.0;
@@ -418,12 +450,20 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
   float* hidden_delta_cuda;
   float* input_prev_weights_cuda;
 
+  TIMESTAMP(t5);
+  time_serial += ELAPSED(t4, t5);
+
+  if (!unified) {
+    checkCudaErrors(cudaMalloc(&hidden_delta_cuda, (hid + 1) * sizeof(float)));
+    checkCudaErrors(cudaMalloc(&input_prev_weights_cuda, (in + 1) * (hid + 1) * sizeof(float)));
+  }
+  TIMESTAMP(t6);
+  time_malloc += ELAPSED(t5, t6);
+
   if (unified) {
     hidden_delta_cuda = net->hidden_delta;
     input_prev_weights_cuda = net->input_prev_weights;
   } else {
-    checkCudaErrors(cudaMalloc(&hidden_delta_cuda, (hid + 1) * sizeof(float)));
-    checkCudaErrors(cudaMalloc(&input_prev_weights_cuda, (in + 1) * (hid + 1) * sizeof(float)));
     checkCudaErrors(cudaMemcpy(hidden_delta_cuda, net->hidden_delta, (hid + 1) * sizeof(float),
         cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(input_prev_weights_cuda, net->input_prev_weights,
@@ -431,10 +471,14 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
     checkCudaErrors(cudaMemcpy(input_hidden_cuda, net->input_weights,
         (in + 1) * (hid + 1) * sizeof(float), cudaMemcpyHostToDevice));
   }
+  TIMESTAMP(t7);
+  time_copy_in += ELAPSED(t6, t7);
+
   bpnn_adjust_weights_cuda<<<grid, threads, 0, stream>>>(hidden_delta_cuda, hid, input_cuda, in,
       input_hidden_cuda, input_prev_weights_cuda);
   checkCudaErrors(cudaStreamSynchronize(stream));
-  TIMESTAMP(kernel_stop);
+  TIMESTAMP(t8);
+  time_kernel += ELAPSED(t7, t8);
 
   if (!unified) {
     checkCudaErrors(cudaMemcpy(net->input_units, input_cuda, (in + 1) * sizeof(float),
@@ -442,6 +486,8 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
     checkCudaErrors(cudaMemcpy(net->input_weights, input_hidden_cuda,
         (in + 1) * (hid + 1) * sizeof(float), cudaMemcpyDeviceToHost));
   }
+  TIMESTAMP(t9);
+  time_copy_out += ELAPSED(t8, t9);
 
   if (unified) {
     checkCudaErrors(cudaFree(partial_sum));
@@ -452,13 +498,8 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
     checkCudaErrors(cudaFree(hidden_partial_sum));
     checkCudaErrors(cudaFree(input_prev_weights_cuda));
     checkCudaErrors(cudaFree(hidden_delta_cuda));
-
     free(partial_sum);
   }
-
-  TIMESTAMP(stop);
-  long long total_time = ELAPSED(start, stop);
-  long long kernel_time = ELAPSED(kernel_start, kernel_stop);
-  printf("\nTime total (including memory transfers)\t%f ms\n", (double) total_time * 1e-6);
-  printf("Time for CUDA kernels:\t%f ms\n", (double) kernel_time * 1e-6);
+  TIMESTAMP(t10);
+  time_free += ELAPSED(t9, t10);
 }
