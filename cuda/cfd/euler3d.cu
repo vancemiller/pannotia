@@ -2,6 +2,7 @@
 // This code is from the AIAA-2009-4001 paper
 
 //#include <cutil.h>
+#include <errno.h>
 #include <helper_cuda.h>
 #include <helper_timer.h>
 #include <iostream>
@@ -82,6 +83,15 @@
 #define VAR_MOMENTUM  1
 #define VAR_DENSITY_ENERGY (VAR_MOMENTUM+NDIM)
 #define NVAR (VAR_DENSITY_ENERGY+1)
+
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+}
+
+#define ELAPSED(start, end) \
+  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 /*
  * Generic functions
@@ -428,6 +438,12 @@ void time_step(int j, int nelr, float* old_variables, float* variables, float* s
  * Main function
  */
 int main(int argc, char** argv) {
+  long long time_serial = 0;
+  long long time_copy_in = 0;
+  long long time_copy_out = 0;
+  long long time_kernel = 0;
+  long long time_malloc = 0;
+  long long time_free = 0;
   printf(
       "WG size of kernel:initialize = %d, WG size of kernel:compute_step_factor = %d, WG size of kernel:compute_flux = %d, WG size of kernel:time_step = %d\n",
       BLOCK_SIZE_1, BLOCK_SIZE_2, BLOCK_SIZE_3, BLOCK_SIZE_4);
@@ -447,6 +463,7 @@ int main(int argc, char** argv) {
 
   printf("Name:                     %s\n", prop.name);
 
+  TIMESTAMP(t0);
   // set far field conditions and load them into constant memory on the gpu
   {
     float h_ff_variable[NVAR];
@@ -499,6 +516,8 @@ int main(int argc, char** argv) {
         cudaMemcpyToSymbol(ff_flux_contribution_density_energy,
           &h_ff_flux_contribution_density_energy, sizeof(float3)));
   }
+  TIMESTAMP(t1);
+  time_serial += ELAPSED(t0, t1);
   int nel;
   int nelr;
 
@@ -512,6 +531,8 @@ int main(int argc, char** argv) {
     file >> nel;
     nelr = BLOCK_SIZE_0 * ((nel / BLOCK_SIZE_0) + std::min(1, nel % BLOCK_SIZE_0));
 
+    TIMESTAMP(t2);
+    time_serial += ELAPSED(t1, t2);
     float* h_areas;
     if (unified) {
       checkCudaErrors(cudaMallocManaged(&h_areas, nelr * sizeof(float)));
@@ -527,6 +548,8 @@ int main(int argc, char** argv) {
       h_elements_surrounding_elements  = new int[nelr * NNB];
       h_normals = new float[nelr * NDIM * NNB];
     }
+    TIMESTAMP(t3);
+    time_malloc += ELAPSED(t2, t3);
 
     // read in data
     for (int i = 0; i < nel; i++) {
@@ -556,27 +579,42 @@ int main(int argc, char** argv) {
           h_normals[last + (j + k * NNB) * nelr] = h_normals[last + (j + k * NNB) * nelr];
       }
     }
+    TIMESTAMP(t4);
+    time_serial += ELAPSED(t3, t4);
+
+    if (!unified) {
+      areas = alloc<float>(nelr);
+      elements_surrounding_elements = alloc<int>(nelr * NNB);
+      normals = alloc<float>(nelr * NDIM * NNB);
+    }
+
+    TIMESTAMP(t5);
+    time_malloc += ELAPSED(t4, t5);
 
     if (unified) {
       areas = h_areas;
       elements_surrounding_elements = h_elements_surrounding_elements;
       normals = h_normals;
     } else {
-      areas = alloc<float>(nelr);
       upload<float>(areas, h_areas, nelr);
-
-      elements_surrounding_elements = alloc<int>(nelr * NNB);
       upload<int>(elements_surrounding_elements, h_elements_surrounding_elements, nelr * NNB);
-
-      normals = alloc<float>(nelr * NDIM * NNB);
       upload<float>(normals, h_normals, nelr * NDIM * NNB);
+    }
 
+    TIMESTAMP(t6);
+    time_copy_in += ELAPSED(t5, t6);
+
+    if (!unified) {
       delete[] h_areas;
       delete[] h_elements_surrounding_elements;
       delete[] h_normals;
     }
+
+    TIMESTAMP(t7);
+    time_free += ELAPSED(t6, t7);
   }
 
+  TIMESTAMP(t8);
   // Create arrays and set initial conditions
   float* variables;
   if (unified) {
@@ -584,6 +622,9 @@ int main(int argc, char** argv) {
   } else {
     variables = alloc<float>(nelr * NVAR);
   }
+  TIMESTAMP(t9);
+  time_malloc += ELAPSED(t8, t9);
+
   initialize_variables(nelr, variables);
 
   float* old_variables = alloc<float>(nelr * NVAR);
@@ -596,6 +637,9 @@ int main(int argc, char** argv) {
   cudaMemset((void*) step_factors, 0, sizeof(float) * nelr);
   // make sure CUDA isn't still doing something before we start timing
   cudaThreadSynchronize();
+
+  TIMESTAMP(t10);
+  time_serial += ELAPSED(t9, t10);
 
   // these need to be computed the first time in order to compute time step
   std::cout << "Starting..." << std::endl;
@@ -626,7 +670,8 @@ int main(int argc, char** argv) {
   cudaThreadSynchronize();
   //	CUT_SAFE_CALL( cutStopTimer(timer) );
   sdkStopTimer(&timer);
-
+  TIMESTAMP(t11);
+  time_kernel += ELAPSED(t10, t11);
   std::cout << (sdkGetAverageTimerValue(&timer) / 1000.0) / iterations << " seconds per iteration"
     << std::endl;
 
@@ -650,7 +695,19 @@ int main(int argc, char** argv) {
   dealloc<float>(fluxes);
   dealloc<float>(step_factors);
 
+  TIMESTAMP(t12);
+  time_free += ELAPSED(t11, t12);
+
   std::cout << "Done..." << std::endl;
+
+  printf("====Timing info====\n");
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t12) * 1e-6);
 
   return 0;
 }
