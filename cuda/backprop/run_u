@@ -1,0 +1,1 @@
+./backprop_cuda -s 1024 -u

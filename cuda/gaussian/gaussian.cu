@@ -242,7 +242,7 @@ int main(int argc, char** argv) {
   }
 
   // run kernels
-  ForwardSub(args.unified, args.unified, matrix_a, vector_b, matrix_m);
+  ForwardSub(args.size, args.unified, matrix_a, vector_b, matrix_m);
 
   TIMESTAMP(t1);
   if (args.verbose) {

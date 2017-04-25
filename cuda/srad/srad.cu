@@ -53,6 +53,8 @@ int main(int argc, char** argv) {
 }
 
 void runTest(int argc, char** argv) {
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -131,7 +133,7 @@ void runTest(int argc, char** argv) {
   }
 
   TIMESTAMP(t2);
-  time_serial += ELAPSED(t1, t2);
+  time_pre += ELAPSED(t1, t2);
 
   printf("Start the SRAD main loop\n");
   for (iter = 0; iter < niter; iter++) {
@@ -180,20 +182,19 @@ void runTest(int argc, char** argv) {
     }
   }
 
-#ifdef OUTPUT
-  //Printing output
-  printf("Printing Output:\n");
+  TIMESTAMP(t3);
+  // bring data back to cpu
+  // not computationally correct
   for( int i = 0; i < rows; i++) {
     for ( int j = 0; j < cols; j++) {
-      printf("%.5f ", J[i * cols + j]);
+      J[i * cols + j] += 1;
     }
-    printf("\n");
   }
-#endif
+  TIMESTAMP(t4);
+  time_post += ELAPSED(t3, t4);
 
   printf("Computation Done\n");
 
-  TIMESTAMP(t3);
   free(I);
   if (unified)
     checkCudaErrors(cudaFree(J));
@@ -207,17 +208,20 @@ void runTest(int argc, char** argv) {
   checkCudaErrors(cudaFree(N_C));
   checkCudaErrors(cudaFree(S_C));
   free(c);
-  TIMESTAMP(t4);
-  time_free += ELAPSED(t3, t4);
+  TIMESTAMP(t5);
+  time_free += ELAPSED(t4, t5);
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t4) * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t5) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 
 void random_matrix(float *I, int rows, int cols) {
