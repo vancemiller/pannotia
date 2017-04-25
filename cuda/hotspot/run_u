@@ -1,0 +1,1 @@
+./hotspot -b 512 -h 2 -i 2 -p ../../data/hotspot/temp_512 -t ../../data/hotspot/power_512 -o output.out -u

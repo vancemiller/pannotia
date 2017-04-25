@@ -38,6 +38,8 @@ static int nproc; 					//# of threads
 bool isCoordChanged;
 
 // GPU Timing Info
+long long pre_t;
+long long post_t;
 long long serial_t;
 long long cpu_to_gpu_t;
 long long gpu_to_cpu_t;
@@ -60,7 +62,7 @@ long long time_shuffle;
   }
 
 #define ELAPSED(start, end) \
-  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
+  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 void inttofile(int data, char *filename) {
   FILE *fp = fopen(filename, "w");
@@ -326,8 +328,8 @@ float pFL(Points *points, int *feasible, int numfeasible, float z, long *k, int 
     for (i = 0; i < iter; i++) {
       x = i % numfeasible;
       change += pgain(feasible[x], points, z, k, kmax, is_center, center_table, switch_membership,
-          isCoordChanged, &serial_t, &cpu_to_gpu_t, &gpu_to_cpu_t, &alloc_t, &kernel_t, &free_t,
-          unified);
+          isCoordChanged, &pre_t, &post_t, &serial_t, &cpu_to_gpu_t, &gpu_to_cpu_t, &alloc_t,
+          &kernel_t, &free_t, unified);
     }
 
     cost -= change;
@@ -887,6 +889,8 @@ int main(int argc, char **argv) {
   TIMESTAMP(t1);
 
   serial_t = 0.0;
+  pre_t = 0.0;
+  post_t = 0.0;
   cpu_to_gpu_t = 0.0;
   gpu_to_cpu_t = 0.0;
   alloc_t = 0.0;
@@ -902,24 +906,23 @@ int main(int argc, char **argv) {
 
   TIMESTAMP(t2);
 
-  printf("time = %ld\n", ELAPSED(t1, t2));
-
   delete stream;
 
-#ifdef PROFILE
   printf("time pselect = %f ms\n", time_select_feasible * 1e-6);
   printf("time pspeedy = %f ms\n", time_speedy * 1e-6);
   printf("time pshuffle = %f ms\n", time_shuffle * 1e-6);
   printf("time localSearch = %f\n", time_local_search * 1e-6);
   printf("\n\n");
-  printf("====CUDA Timing info (pgain)====\n");
-  printf("time serial = %f ms\n", serial_t * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", cpu_to_gpu_t * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", gpu_to_cpu_t * 1e-6);
-  printf("time GPU malloc = %f ms\n", alloc_t * 1e-6);
-  printf("time GPU free = %f ms\n", free_t * 1e-6);
-  printf("time kernel = %f ms\n", kernel_t * 1e-6);
-#endif
 
-  return 0;
+  printf("====Timing info====\n");
+  printf("time malloc = %f ms\n", alloc_t * 1e-6);
+  printf("time pre = %f ms\n", pre_t * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", cpu_to_gpu_t * 1e-6);
+  printf("time kernel = %f ms\n", kernel_t * 1e-6);
+  printf("time serial = %f ms\n", serial_t * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", gpu_to_cpu_t * 1e-6);
+  printf("time post = %f ms\n", post_t * 1e-6);
+  printf("time free = %f ms\n", free_t * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t1, t2) * 1e-6);
+  exit(EXIT_SUCCESS);
 }

@@ -34,6 +34,8 @@ bool unified;
 #define M_SEED 9
 int pyramid_height;
 
+long long time_pre = 0;
+long long time_post = 0;
 long long time_serial = 0;
 long long time_copy_in = 0;
 long long time_copy_out = 0;
@@ -180,7 +182,7 @@ void run(int argc, char** argv) {
     }
   }
   TIMESTAMP(t2);
-  time_serial += ELAPSED(t1, t2);
+  time_pre += ELAPSED(t1, t2);
 
 #ifdef BENCH_PRINT
   for (int i = 0; i < rows; i++) {
@@ -235,14 +237,14 @@ void run(int argc, char** argv) {
   TIMESTAMP(t7);
   time_copy_out += ELAPSED(t6, t7);
 
-#ifdef BENCH_PRINT
+  // Touch the data to bring it back to cpu
+  // not computationally correct
   for (int i = 0; i < cols; i++)
-    printf("%d ", data[i]);
-  printf("\n");
+    data[i] += 1;
   for (int i = 0; i < cols; i++)
-    printf("%d ", result[i]);
-  printf("\n");
-#endif
+    result[i] += 1;
+  TIMESTAMP(t8);
+  time_post += ELAPSED(t7, t8);
 
   if (unified) {
     checkCudaErrors(cudaFree(data));
@@ -255,15 +257,19 @@ void run(int argc, char** argv) {
     free(result);
   }
   delete[] wall;
-  TIMESTAMP(t8);
-  time_free += ELAPSED(t7, t8);
+  TIMESTAMP(t9);
+  time_free += ELAPSED(t8, t9);
+
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t8) * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t9) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 

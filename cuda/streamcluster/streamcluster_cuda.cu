@@ -136,9 +136,9 @@ void freeHostMem(bool unified) {
 // pgain Entry - CUDA SETUP + CUDA CALL
 //=======================================
 float pgain(long x, Points *points, float z, long int *numcenters, int kmax, bool *is_center,
-    int *center_table, bool *switch_membership, bool isCoordChanged, long long *serial_t,
-    long long *cpu_to_gpu_t, long long *gpu_to_cpu_t, long long *alloc_t, long long *kernel_t,
-    long long *free_t, bool unified) {
+    int *center_table, bool *switch_membership, bool isCoordChanged, long long *pre_t,
+    long long *post_t, long long *serial_t, long long *cpu_to_gpu_t, long long *gpu_to_cpu_t,
+    long long *alloc_t, long long *kernel_t, long long *free_t, bool unified) {
 
   TIMESTAMP(t0);
 
@@ -181,7 +181,7 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
     }
   }
   TIMESTAMP(t1);
-  *serial_t += ELAPSED(t0, t1);
+  *pre_t += ELAPSED(t0, t1);
 
   //=======================================
   // ALLOCATE GPU MEMORY
@@ -219,12 +219,14 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
         cudaMemcpy(center_table_d, center_table, num * sizeof(int), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(p, points->p, num * sizeof(Point), cudaMemcpyHostToDevice));
   }
+  TIMESTAMP(t3);
+  *cpu_to_gpu_t += ELAPSED(t2, t3);
 
   checkCudaErrors(cudaMemset(switch_membership_d, 0, num * sizeof(bool)));
   checkCudaErrors(cudaMemset(work_mem_d, 0, stride * (nThread + 1) * sizeof(float)));
+  TIMESTAMP(t3p);
+  *serial_t += ELAPSED(t3, t3p);
 
-  TIMESTAMP(t3);
-  *cpu_to_gpu_t += ELAPSED(t2, t3);
 
   //=======================================
   // KERNEL: CALCULATE COST
@@ -250,7 +252,7 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
   checkCudaErrors(cudaStreamSynchronize(stream));
 
   TIMESTAMP(t4);
-  *kernel_t += ELAPSED(t3, t4);
+  *kernel_t += ELAPSED(t3p, t4);
 
   //=======================================
   // GPU-TO-CPU MEMORY COPY
@@ -316,7 +318,7 @@ float pgain(long x, Points *points, float z, long int *numcenters, int kmax, boo
   }
 
   TIMESTAMP(t6);
-  *serial_t += ELAPSED(t5, t6);
+  *post_t += ELAPSED(t5, t6);
 
   //=======================================
   // DEALLOCATE HOST MEMORY

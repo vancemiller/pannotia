@@ -1,6 +1,8 @@
 // Includes, system
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <math.h>
 #include <assert.h>
@@ -101,6 +103,16 @@ unsigned int num_bind_tex_calls = 0;
   ++num_bind_tex_calls;													 \
 } while(0)
 
+#define TIMESTAMP(NAME) \
+  struct timespec NAME; \
+if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
+  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
+}
+
+#define ELAPSED(start, end) \
+  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
 void runTest( int argc, char** argv);
@@ -171,59 +183,17 @@ void mapQueriesEndToEnd(MatchContext* ctx,
     Alignment* h_alignments,
     unsigned int numAligments);
 
-char *  createTimer()
-{
-  unsigned int * ptr = (unsigned int *) malloc(sizeof(struct Timer_t));
-  memset(ptr, 0, sizeof(struct Timer_t));
-  return (char *) ptr;
-}
-
-void startTimer(char * ptr)
-{
-  gettimeofday(&(((struct Timer_t *)ptr)->start_m), NULL);
-}
-
-void stopTimer(char * ptr)
-{
-  gettimeofday(&(((struct Timer_t *)ptr)->end_m), NULL);
-}
-
-float getTimerValue(char * ptr)
-{
-  Timer_t * timer = (Timer_t*) ptr;
-
-  if (timer == NULL)
-  {
-    fprintf(stderr, "Uninitialized timer!!!\n");
-    return 0.0;
-  }
-
-  if (timer->end_m.tv_sec == 0) { stopTimer(ptr); }
-
-  return  (float) (1000.0 * (timer->end_m.tv_sec - timer->start_m.tv_sec)
-      + (0.001 *  (timer->end_m.tv_usec - timer->start_m.tv_usec)));
-}
-
-void deleteTimer(char * ptr)
-{
-  free((Timer_t *)ptr);
-}
-
   extern "C"
 int createReference(const char* fromFile, Reference* ref)
 {
   if (!fromFile || !ref)
     return -1;
 
-  char * loadreftimer = createTimer();
-  startTimer(loadreftimer);
-
+  TIMESTAMP(t0);
   getReferenceString(fromFile, &(ref->str), &(ref->len));
+  TIMESTAMP(t1);
 
-  stopTimer(loadreftimer);
-  ref->t_load_from_disk += getTimerValue(loadreftimer);
-  deleteTimer(loadreftimer);
-
+  ref->t_load_from_disk += ELAPSED(t0, t1);
   return 0;
 }
 
@@ -346,9 +316,7 @@ void buildReferenceTexture(Reference* ref,
   AuxiliaryNodeData* aux_data = NULL;
   int num_nodes;
 
-  char * loadreftimer = createTimer();
-  startTimer(loadreftimer);
-
+  TIMESTAMP(t0);
   ref->len = end - begin + 3;
   if (unified) {
     CUDA_SAFE_CALL(cudaMallocManaged(&ref->str, ref->len));
@@ -359,9 +327,8 @@ void buildReferenceTexture(Reference* ref,
   strncpy(ref->str + 1, full_ref + begin, ref->len - 3);
   strcpy(ref->str + ref->len - 2, "$");
 
-  stopTimer(loadreftimer);
-  statistics->t_ref_from_disk += getTimerValue(loadreftimer) + ref->t_load_from_disk;
-  deleteTimer(loadreftimer);
+  TIMESTAMP(t1);
+  statistics->t_ref_from_disk += ELAPSED(t0, t1);
 
   createTreeTexture(ref->str,
       &nodeTexture,
@@ -395,9 +362,7 @@ void buildReferenceTexture(Reference* ref,
   fprintf(stderr, "This tree will need %lu bytes on the board\n", ref->bytes_on_board);
 
 #if REORDER_REF
-  char * reordertimer = createTimer();
-  startTimer(reordertimer);
-
+  TIMESTAMP(t0);
   unsigned int refpitch = ref->pitch = 65536;
   int numrows = ceil(ref->len / ((float)refpitch));
   int blocksize = 4;
@@ -450,10 +415,9 @@ void buildReferenceTexture(Reference* ref,
 
     exit(1);
   }
-  stopTimer(reordertimer);
+  TIMETAMP(t1);
   if (statistics)
-    statistics->t_reorder_ref_str += getTimerValue(reordertimer);
-  deleteTimer(reordertimer);
+    statistics->t_reorder_ref_str += ELAPSED(t0, t1);
 #else
   fprintf(stderr, "The refstr requires %lu bytes\n", ref->len);
   ref->bytes_on_board += ref->len;
@@ -486,8 +450,7 @@ void loadReferenceTexture(MatchContext* ctx, bool unified)
     cudaCreateChannelDesc(8, 0, 0, 0, cudaChannelFormatKindSigned);
 
   if (!ctx->on_cpu) {
-    char * toboardtimer = createTimer();
-    startTimer(toboardtimer);
+    TIMESTAMP(t0);
 
 #if REFTEX
 #if REORDER_REF
@@ -555,17 +518,16 @@ void loadReferenceTexture(MatchContext* ctx, bool unified)
     } else {
       CUDA_MALLOC( (void**)(&ref->d_ref_array), ref->len);
       CUDA_SAFE_CALL( cudaMemcpy( (void*)(ref->d_ref_array),
-          ref->str,
-          ref->len,
-          cudaMemcpyHostToDevice) );
+            ref->str,
+            ref->len,
+            cudaMemcpyHostToDevice) );
     }
 
     ctx->ref->bytes_on_board += ref->len;
 #endif
 #endif
-    stopTimer(toboardtimer);
-    ctx->statistics.t_ref_str_to_board += getTimerValue(toboardtimer);
-    deleteTimer(toboardtimer);
+    TIMESTAMP(t1);
+    ctx->statistics.t_ref_str_to_board += ELAPSED(t0, t1);
   }
   else {
     ref->d_ref_array = NULL;
@@ -656,9 +618,7 @@ void loadReference(MatchContext* ctx, bool unified) {
   loadReferenceTexture(ctx, unified);
 
   if (!ctx->on_cpu) {
-    char * toboardtimer = createTimer();
-    startTimer(toboardtimer);
-
+    TIMESTAMP(t0);
     // node texels
     ref->bytes_on_board += ref->tex_width * ref->tex_node_height * (sizeof(PixelOfNode));
 
@@ -889,10 +849,8 @@ void loadReference(MatchContext* ctx, bool unified) {
 
     CUDA_SAFE_CALL( cudaMemcpyToSymbol(child_tree_top, child_buf, sizeof(child_buf)));
 #endif
-    stopTimer(toboardtimer);
-    ctx->statistics.t_tree_to_board += getTimerValue(toboardtimer);
-    deleteTimer(toboardtimer);
-
+    TIMESTAMP(t1);
+    ctx->statistics.t_tree_to_board += ELAPSED(t0, t1);
     fprintf(stderr, "done\n");
   }
   else {
@@ -920,9 +878,7 @@ void loadQueries(MatchContext* ctx)
   if (!ctx->on_cpu) {
     fprintf(stderr, "Allocating device memory for queries... ");
 
-    char* toboardtimer = createTimer();
-    startTimer(toboardtimer);
-
+    TIMESTAMP(t0);
     dumpQueryBlockInfo(queries);
     CUDA_MALLOC((void**) &queries->d_tex_array, queries->texlen);                                                    \
 
@@ -962,12 +918,9 @@ void loadQueries(MatchContext* ctx)
           queries->h_lengths_array,
           numQueries * sizeof(int),
           cudaMemcpyHostToDevice));
-    stopTimer(toboardtimer);
-    ctx->statistics.t_queries_to_board += getTimerValue(toboardtimer);
-    deleteTimer(toboardtimer);
-
+    TIMESTAMP(t1);
+    ctx->statistics.t_queries_to_board += ELAPSED(t0, t1);
     fprintf(stderr, "\tallocated %ld bytes\n", queries->bytes_on_board);
-
   }
   else {
     queries->d_addrs_tex_array = NULL;
@@ -1064,16 +1017,12 @@ void loadResultBuffer(MatchContext* ctx)
 
   assert (numQueries);
 
-  char* offsettimer = createTimer();
-  startTimer(offsettimer);
-
+  TIMESTAMP(t0);
   buildCoordOffsetArray(ctx,
       &(ctx->results.h_coord_tex_array),
       &(ctx->results.numCoords));
-
-  stopTimer(offsettimer);
-  ctx->statistics.t_build_coord_offsets += getTimerValue(offsettimer);
-  deleteTimer(offsettimer);
+  TIMESTAMP(t1);
+  ctx->statistics.t_build_coord_offsets += ELAPSED(t0, t1);
 
   unsigned int numCoords = ctx->results.numCoords;
   fprintf(stderr, "Allocating result array for %d queries (%lu bytes) ...",
@@ -1095,8 +1044,7 @@ void loadResultBuffer(MatchContext* ctx)
   }
 
   if (!ctx->on_cpu) {
-    char* toboardtimer = createTimer();
-    startTimer(toboardtimer);
+    TIMESTAMP(t2);
 
     ctx->results.bytes_on_board = 0;
 
@@ -1118,9 +1066,8 @@ void loadResultBuffer(MatchContext* ctx)
           numQueries * sizeof(int),
           cudaMemcpyHostToDevice));
 #endif
-    stopTimer(toboardtimer);
-    ctx->statistics.t_match_coords_to_board += getTimerValue(toboardtimer);
-    deleteTimer(toboardtimer);
+    TIMESTAMP(t3);
+    ctx->statistics.t_match_coords_to_board += ELAPSED(t2, t3);
   }
   else {
     ctx->results.d_match_coords = NULL;
@@ -1144,9 +1091,7 @@ void transferResultsFromDevice(MatchContext* ctx)
 {
   if (!ctx->on_cpu)
   {
-    char* fromboardtimer = createTimer();
-    startTimer(fromboardtimer);
-
+    TIMESTAMP(t0);
     CUDA_SAFE_CALL(cudaMemcpy(ctx->results.h_match_coords,
           ctx->results.d_match_coords,
           ctx->results.numCoords * sizeof(MatchCoord),
@@ -1194,12 +1139,9 @@ void transferResultsFromDevice(MatchContext* ctx)
     }
 
 #endif
-
-    stopTimer(fromboardtimer);
-    ctx->statistics.t_match_coords_from_board += getTimerValue(fromboardtimer);
-    deleteTimer(fromboardtimer);
+    TIMESTAMP(t1);
+    ctx->statistics.t_match_coords_from_board += ELAPSED(t0, t1);
   }
-
 }
 
 
@@ -1381,8 +1323,7 @@ void runPrintKernel(MatchContext* ctx,
     CUDA_SAFE_CALL(cudaMemset((void*)   d_alignments, 0, alignmentSize));
   }
 
-  char*  atimer = createTimer();
-  startTimer(atimer);
+  TIMESTAMP(t0);
   // Copy matches to card
   fprintf(stderr, "prepared %d matches %d alignments\n", numMatches, numAlignments);
   fprintf(stderr, "Copying %lu bytes to host memory for %d alignments\n",  numAlignments * sizeof(Alignment), numAlignments);
@@ -1411,8 +1352,8 @@ void runPrintKernel(MatchContext* ctx,
   } else {
     CUDA_SAFE_CALL(cudaMemcpy(d_matches, h_matches, matchesSize, cudaMemcpyHostToDevice));
   }
-  stopTimer(atimer);
-  float mtime =  getTimerValue(atimer);
+  TIMESTAMP(t1);
+  long long mtime =  ELAPSED(t0, t1);
   // Launch the kernel
 
   int blocksize = (numMatches > BLOCKSIZE) ? BLOCKSIZE : numMatches;
@@ -1469,20 +1410,19 @@ void runPrintKernel(MatchContext* ctx,
     exit(EXIT_FAILURE);
   }
 
-  startTimer(atimer);
+  TIMESTAMP(t2);
   // Copy the results back to the host
   if (!unified) {
     CUDA_SAFE_CALL(cudaMemcpy((void*)alignments,
-        (void*)d_alignments,
-        alignmentSize,
-        cudaMemcpyDeviceToHost));
+          (void*)d_alignments,
+          alignmentSize,
+          cudaMemcpyDeviceToHost));
   }
   cudaThreadSynchronize();
-  stopTimer(atimer);
+  TIMESTAMP(t3);
 
-  float atime = getTimerValue(atimer);
-  fprintf(stderr, "memcpy time= %f\n", atime + mtime);
-  deleteTimer(atimer);
+  long long atime = ELAPSED(t2, t3);
+  fprintf(stderr, "memcpy time= %lld\n", atime + mtime);
   // Cleanup
   if (!unified) {
     CUDA_SAFE_CALL(cudaFree(d_alignments));
@@ -1583,16 +1523,14 @@ void getExactAlignments(MatchContext * ctx, ReferencePage * page, bool on_cpu, b
     MatchInfo* h_matches = NULL;
     Alignment* h_alignments = NULL;
     int coord_left = next_coord;
-    char* btimer = createTimer();
-    startTimer(btimer);
+    TIMESTAMP(t0);
     coordsToPrintBuffers(ctx, page, &h_matches, &h_alignments, boardFreeMemory,
         &next_coord, &numMatches, &numAlignments, &nextqry, &nextqrychar, unified);
-    stopTimer(btimer);
+    TIMESTAMP(t1);
 
-    float btime = getTimerValue(btimer);
+    long long btime = ELAPSED(t0, t1);
     ctx->statistics.t_coords_to_buffers += btime;
-    fprintf(stderr, "buffer prep time= %f\n", btime);
-    deleteTimer(btimer);
+    fprintf(stderr, "buffer prep time= %lld\n", btime);
 
     fprintf(stderr, "Round %d: Printing results for match coords [%d-%d) of %d using %d matches and %d alignments\n",
         totalRounds, coord_left, next_coord, last_coord, numMatches, numAlignments);
@@ -1614,8 +1552,7 @@ void getExactAlignments(MatchContext * ctx, ReferencePage * page, bool on_cpu, b
       loadQueries(ctx);
     }
 
-    char* ktimer = createTimer();
-    startTimer(ktimer);
+    TIMESTAMP(t2);
     if (on_cpu)
     {
       runPrintOnCPU(ctx, page, h_matches, numMatches,
@@ -1626,34 +1563,13 @@ void getExactAlignments(MatchContext * ctx, ReferencePage * page, bool on_cpu, b
       runPrintKernel(ctx, page, h_matches, numMatches,
           h_alignments, numAlignments, unified);
     }
-    stopTimer(ktimer);
+    TIMESTAMP(t3);
 
-    float ktime = getTimerValue(ktimer);
+    long long ktime = ELAPSED(t2, t3);
     ctx->statistics.t_print_kernel += ktime;
-    fprintf(stderr, "print kernel time= %f\n", ktime);
-    deleteTimer(ktimer);
-
-    // char* stimer = createTimer();
-    // startTimer(stimer);
-    // mapQueriesEndToEnd(ctx,
-    //                    page,
-    //                    h_matches,
-    //                    numMatches,
-    //                    h_alignments,
-    // 				   numAlignments);
-    //
-    // stopTimer(stimer);
-    //
-    // float stime = getTimerValue(stimer);
-    // fprintf(stderr, "postprocess time= %f\n", stime);
-    // deleteTimer(stimer);
-
-    //flushOutput();
+    fprintf(stderr, "print kernel time= %lld\n", ktime);
 
     //Process the alignments
-    char* otimer = createTimer();
-    startTimer(otimer);
-
     for (int m = 0; m < numMatches; m++)
     {
       int base = h_matches[m].resultsoffset;
@@ -1668,16 +1584,16 @@ void getExactAlignments(MatchContext * ctx, ReferencePage * page, bool on_cpu, b
         if (h_matches[m].queryid != lastqry)
         {
           lastqry = h_matches[m].queryid;
-          addToBuffer("> ");
-          addToBuffer(*(ctx->queries->h_names + lastqry));
-          addToBuffer("\n");
+          //addToBuffer("> ");
+          //addToBuffer(*(ctx->queries->h_names + lastqry));
+          //addToBuffer("\n");
         }
 
-        sprintf(buf, "%d\t%d\t%d\n",
-            h_alignments[base+i].left_in_ref,
-            h_matches[m].qrystartpos + 1,
-            h_alignments[base+i].matchlen);
-        addToBuffer(buf);
+        //sprintf(buf, "%d\t%d\t%d\n",
+        //    h_alignments[base+i].left_in_ref,
+        //    h_matches[m].qrystartpos + 1,
+        //    h_alignments[base+i].matchlen);
+        //addToBuffer(buf);
 
         // addMatchToBuffer(h_alignments[base+i].left_in_ref,
         // 								 h_matches[m].qrystartpos + 1,
@@ -1685,18 +1601,12 @@ void getExactAlignments(MatchContext * ctx, ReferencePage * page, bool on_cpu, b
 
       }
     }
-
-
-    flushOutput();
-
-    stopTimer(otimer);
-    ctx->statistics.t_results_to_disk += getTimerValue(otimer);
-    deleteTimer(otimer);
+    //flushOutput();
+    TIMESTAMP(t4);
+    ctx->statistics.t_results_to_disk += ELAPSED(t3, t4);
 
     free(h_matches);
     free(h_alignments);
-    //cudaFreeHost((void*)h_alignments);
-
   }
   free(ctx->results.h_coord_tex_array);
   free(ctx->results.h_match_coords);
@@ -1720,9 +1630,7 @@ int getQueryBlock(MatchContext* ctx, size_t device_mem_avail)
 
   fprintf(stderr, "Loading query block... ");
 
-  char* queryreadtimer = createTimer();
-  startTimer(queryreadtimer);
-
+  TIMESTAMP(t0);
   getQueriesTexture(queries->qfile,
       &queryTex,
       &queryLen,
@@ -1734,10 +1642,8 @@ int getQueryBlock(MatchContext* ctx, size_t device_mem_avail)
       device_mem_avail,
       ctx->min_match_length,
       ctx->reverse || ctx->forwardreverse);
-
-  stopTimer(queryreadtimer);
-  ctx->statistics.t_queries_from_disk += getTimerValue(queryreadtimer);
-  deleteTimer(queryreadtimer);
+  TIMESTAMP(t1);
+  ctx->statistics.t_queries_from_disk += ELAPSED(t0, t1);
 
   queries->h_tex_array = queryTex;
   queries->count = numQueries;
@@ -1860,24 +1766,24 @@ void writeStatisticsFile(Statistics* stats,
       fprintf(f, ",%d", REORDER_REF);
       fprintf(f, ",%d", REORDER_TREE);
       fprintf(f, ",%d", RENUMBER_TREE);
-      fprintf(f, ",%f", stats->t_end_to_end);
-      fprintf(f, ",%f", stats->t_match_kernel);
-      fprintf(f, ",%f", stats->t_print_kernel);
-      fprintf(f, ",%f", stats->t_queries_to_board);
-      fprintf(f, ",%f", stats->t_match_coords_to_board);
-      fprintf(f, ",%f", stats->t_match_coords_from_board);
-      fprintf(f, ",%f", stats->t_tree_to_board);
-      fprintf(f, ",%f", stats->t_ref_str_to_board);
-      fprintf(f, ",%f", stats->t_queries_from_disk);
-      fprintf(f, ",%f", stats->t_ref_from_disk);
-      fprintf(f, ",%f", stats->t_results_to_disk);
-      fprintf(f, ",%f", stats->t_tree_construction);
-      fprintf(f, ",%f", stats->t_tree_reorder);
-      fprintf(f, ",%f", stats->t_tree_flatten);
-      fprintf(f, ",%f", stats->t_reorder_ref_str);
-      fprintf(f, ",%f", stats->t_build_coord_offsets);
-      fprintf(f, ",%f", stats->t_coords_to_buffers);
-      fprintf(f, ",%f", stats->bp_avg_query_length);
+      fprintf(f, ",%f", stats->t_end_to_end * 1e-6);
+      fprintf(f, ",%f", stats->t_match_kernel * 1e-6);
+      fprintf(f, ",%f", stats->t_print_kernel * 1e-6);
+      fprintf(f, ",%f", stats->t_queries_to_board * 1e-6);
+      fprintf(f, ",%f", stats->t_match_coords_to_board * 1e-6);
+      fprintf(f, ",%f", stats->t_match_coords_from_board * 1e-6);
+      fprintf(f, ",%f", stats->t_tree_to_board * 1e-6);
+      fprintf(f, ",%f", stats->t_ref_str_to_board * 1e-6);
+      fprintf(f, ",%f", stats->t_queries_from_disk * 1e-6);
+      fprintf(f, ",%f", stats->t_ref_from_disk * 1e-6);
+      fprintf(f, ",%f", stats->t_results_to_disk * 1e-6);
+      fprintf(f, ",%f", stats->t_tree_construction * 1e-6);
+      fprintf(f, ",%f", stats->t_tree_reorder * 1e-6);
+      fprintf(f, ",%f", stats->t_tree_flatten * 1e-6);
+      fprintf(f, ",%f", stats->t_reorder_ref_str * 1e-6);
+      fprintf(f, ",%f", stats->t_build_coord_offsets * 1e-6);
+      fprintf(f, ",%f", stats->t_coords_to_buffers * 1e-6);
+      fprintf(f, ",%f", stats->bp_avg_query_length * 1e-6);
       fprintf(f,"\n");
 
       fclose(f);
@@ -2040,31 +1946,26 @@ void matchQueryBlockToReferencePage(MatchContext* ctx,
     ReferencePage* page,
     bool reverse_complement)
 {
-  char*  ktimer = createTimer();
-
   fprintf(stderr, "Memory footprint is:\n\tqueries: %lu\n\tref: %lu\n\tresults: %lu\n",
       ctx->queries->bytes_on_board,
       ctx->ref->bytes_on_board,
       ctx->results.bytes_on_board);
 
-  startTimer(ktimer);
+  TIMESTAMP(t0);
   if (ctx->on_cpu)
   {
     matchOnCPU(ctx, reverse_complement);
   }
   else
   {
-
     matchOnGPU(ctx, reverse_complement);
     cudaThreadSynchronize();
-
   }
-  stopTimer(ktimer);
+  TIMESTAMP(t1);
 
-  float ktime = getTimerValue(ktimer);
+  long long ktime = ELAPSED(t0, t1);
   ctx->statistics.t_match_kernel += ktime;
-  fprintf(stderr, "match kernel time= %f\n", ktime);
-  deleteTimer(ktimer);
+  fprintf(stderr, "match kernel time= %lld\n", ktime);
 
   getMatchResults(ctx, page->id);
   unloadResultBuffer(ctx);
@@ -2100,7 +2001,7 @@ int matchSubset(MatchContext* ctx,
     getExactAlignments(ctx, page, true, unified);
   }
 
-  flushOutput();
+  //flushOutput();
   unloadQueries(ctx);
   return 0;
 }
@@ -2220,7 +2121,6 @@ int streamReferenceAgainstQueries(MatchContext* ctx, bool unified) {
   destroyReference(&(pages[0].ref));
 
   for (int i = 1; i < num_reference_pages - 1; ++i) {
-
     buildReferenceTexture(&(pages[i].ref),
         ctx->full_ref,
         pages[i].begin,
@@ -2265,22 +2165,17 @@ int matchQueries(MatchContext* ctx, bool unified) {
 
   resetStats(&(ctx->statistics));
 
-  char* ttimer = createTimer();
-  startTimer(ttimer);
-
+  TIMESTAMP(t0);
   int ret;
 
   fprintf(stderr, "Streaming reference pages against all queries\n");
   ret = streamReferenceAgainstQueries(ctx, unified);
 
-  stopTimer(ttimer);
-  ctx->statistics.t_end_to_end += getTimerValue(ttimer);
-  deleteTimer(ttimer);
+  TIMESTAMP(t1);
+  ctx->statistics.t_end_to_end += ELAPSED(t0, t1);
 
   writeStatisticsFile(&(ctx->statistics), ctx->stats_file, "node_hist.out", "child_hist.out");
 
   return ret;
 }
-
-
 

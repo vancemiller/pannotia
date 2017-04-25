@@ -23,6 +23,8 @@ if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
 
 int work_2(int xmax, int workload, bool unified) {
 
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -175,7 +177,7 @@ int work_2(int xmax, int workload, bool unified) {
     read("../../data/myocyte/params.txt", &params[pointer], 18, 1, 0);
   }
   TIMESTAMP(t2);
-  time_serial += ELAPSED(t1, t2);
+  time_pre += ELAPSED(t1, t2);
 
   if (unified) {
     d_x = x;
@@ -240,25 +242,23 @@ int work_2(int xmax, int workload, bool unified) {
   //		PRINT RESULTS (ENABLE SELECTIVELY FOR TESTING ONLY)
   //================================================================================80
 
-  // int j, k;
+  for (int i = 0; i < workload; i++){
+    for (int j = 0; j < (xmax + 1); j++){
+      for (int k = 0; k < EQUATIONS; k++){
+        // touch data to bring it back to cpu
+        // this is not computationally meaningful
+        y[i * ((xmax + 1) * EQUATIONS) + j * (EQUATIONS) + k] += 1;
+      }
+    }
+  }
 
-  // for(i=0; i<workload; i++){
-  // printf("WORKLOAD %d:\n", i);
-  // for(j=0; j<(xmax+1); j++){
-  // printf("\tTIME %d:\n", j);
-  // for(k=0; k<EQUATIONS; k++){
-  // printf("\t\ty[%d][%d][%d]=%13.10f\n", i, j, k, y[i*((xmax+1)*EQUATIONS) + j*(EQUATIONS)+k]);
-  // }
-  // }
-  // }
-
-  // for(i=0; i<workload; i++){
-  // printf("WORKLOAD %d:\n", i);
-  // for(j=0; j<(xmax+1); j++){
-  // printf("\tTIME %d:\n", j);
-  // printf("\t\tx[%d][%d]=%13.10f\n", i, j, x[i * (xmax+1) + j]);
-  // }
-  // }
+  for (int i = 0; i < workload; i++){
+    for (int j = 0; j < (xmax + 1); j++){
+      // touch data to bring it back to cpu
+      // this is not computationally meaningful
+      x[i * (xmax+1) + j] += 1;
+    }
+  }
 
   //================================================================================80
   //		DEALLOCATION
@@ -305,13 +305,16 @@ int work_2(int xmax, int workload, bool unified) {
   //================================================================================80
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t7) * 1e-6);
+  exit(EXIT_SUCCESS);
 
   //====================================================================================================100
   //		END OF FILE

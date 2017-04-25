@@ -1,0 +1,1 @@
+./bin/mummergpu ../../data/mummergpu/NC_003997.fna ../../data/mummergpu/NC_003997_q25bp.50k.fna u > /dev/null

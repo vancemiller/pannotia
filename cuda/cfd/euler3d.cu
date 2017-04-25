@@ -438,6 +438,8 @@ void time_step(int j, int nelr, float* old_variables, float* variables, float* s
  * Main function
  */
 int main(int argc, char** argv) {
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -517,7 +519,7 @@ int main(int argc, char** argv) {
           &h_ff_flux_contribution_density_energy, sizeof(float3)));
   }
   TIMESTAMP(t1);
-  time_serial += ELAPSED(t0, t1);
+  time_pre += ELAPSED(t0, t1);
   int nel;
   int nelr;
 
@@ -532,7 +534,7 @@ int main(int argc, char** argv) {
     nelr = BLOCK_SIZE_0 * ((nel / BLOCK_SIZE_0) + std::min(1, nel % BLOCK_SIZE_0));
 
     TIMESTAMP(t2);
-    time_serial += ELAPSED(t1, t2);
+    time_pre += ELAPSED(t1, t2);
     float* h_areas;
     if (unified) {
       checkCudaErrors(cudaMallocManaged(&h_areas, nelr * sizeof(float)));
@@ -580,7 +582,7 @@ int main(int argc, char** argv) {
       }
     }
     TIMESTAMP(t4);
-    time_serial += ELAPSED(t3, t4);
+    time_pre += ELAPSED(t3, t4);
 
     if (!unified) {
       areas = alloc<float>(nelr);
@@ -639,7 +641,7 @@ int main(int argc, char** argv) {
   cudaThreadSynchronize();
 
   TIMESTAMP(t10);
-  time_serial += ELAPSED(t9, t10);
+  time_pre += ELAPSED(t9, t10);
 
   // these need to be computed the first time in order to compute time step
   std::cout << "Starting..." << std::endl;
@@ -701,13 +703,15 @@ int main(int argc, char** argv) {
   std::cout << "Done..." << std::endl;
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
   printf("End-to-end = %f ms\n", ELAPSED(t0, t12) * 1e-6);
-
-  return 0;
+  exit(EXIT_SUCCESS);
 }
+

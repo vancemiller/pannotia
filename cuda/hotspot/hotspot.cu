@@ -174,6 +174,8 @@ int main(int argc, char** argv) {
 
   VPRINT(args.verbose, "WG size of kernel = %d X %d\n", BLOCK_SIZE, BLOCK_SIZE);
 
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -199,7 +201,7 @@ int main(int argc, char** argv) {
   float* d_power;
 
   TIMESTAMP(t1);
-  time_serial += ELAPSED(t0, t1);
+  time_pre += ELAPSED(t0, t1);
   if (args.unified) {
     checkCudaErrors(cudaMallocManaged(&temperature, size * sizeof(float)));
     checkCudaErrors(cudaMallocManaged(&power, size * sizeof(float)));
@@ -230,7 +232,7 @@ int main(int argc, char** argv) {
   readinput(power, args.base, args.base, args.power);
 
   TIMESTAMP(t3);
-  time_serial += ELAPSED(t2, t3);
+  time_pre += ELAPSED(t2, t3);
 
   if (args.unified) {
     d_temperature[0] = temperature;
@@ -266,7 +268,7 @@ int main(int argc, char** argv) {
   writeoutput(result, args.base, args.base, args.output);
 
   TIMESTAMP(t7);
-  time_serial += ELAPSED(t6, t7);
+  time_post += ELAPSED(t6, t7);
 
   if (args.unified) {
     checkCudaErrors(cudaFree(temperature));
@@ -284,13 +286,16 @@ int main(int argc, char** argv) {
   time_free += ELAPSED(t7, t8);
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t8) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 
 void writeoutput(float* vect, int rows, int cols, char* file) {

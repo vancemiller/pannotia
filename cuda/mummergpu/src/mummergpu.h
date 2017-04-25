@@ -3,7 +3,7 @@
 
 
 extern "C" {
-struct QuerySet {
+  struct QuerySet {
     int qfile;
 
     char* h_tex_array;
@@ -20,21 +20,21 @@ struct QuerySet {
 
     // total device memory occupied by this query set
     size_t bytes_on_board;
-};
+  };
 
 
-struct AuxiliaryNodeData {
+  struct AuxiliaryNodeData {
     int length;
     int numleaves;
     TextureAddress printParent;
-};
+  };
 
 
-struct Reference {
+  struct Reference {
     /* Reference string */
     char* str;
     size_t len;
-	float t_load_from_disk;
+    long long t_load_from_disk;
 
     unsigned int pitch;
     void* d_ref_array;  //cudaArray*
@@ -51,11 +51,11 @@ struct Reference {
     void* h_parent_tex_array; //PixelOfParent*
 
 #if TREE_ACCESS_HISTOGRAM
-	int* d_node_hist;
-	int* h_node_hist;
+    int* d_node_hist;
+    int* h_node_hist;
 
-	int* d_child_hist;
-	int* h_child_hist;
+    int* d_child_hist;
+    int* h_child_hist;
 #endif
 
     unsigned int tex_node_height;
@@ -68,27 +68,27 @@ struct Reference {
     AuxiliaryNodeData* aux_data;
     int num_nodes;
 
-};
+  };
 
 
-// Matches are reported as a node in the suffix tree,
-// plus a distance up the node's parent link for partial
-// matches on the patch from the root to the node
+  // Matches are reported as a node in the suffix tree,
+  // plus a distance up the node's parent link for partial
+  // matches on the patch from the root to the node
 
 
-struct MatchCoord{
-	union
-	{
-		int2 data;
-   		struct
-		{
-			TextureAddress node; // match node
-   			int edge_match_length;  // number of missing characters UP the parent edge
-		};
-	};
-};
+  struct MatchCoord{
+    union
+    {
+      int2 data;
+      struct
+      {
+        TextureAddress node; // match node
+        int edge_match_length;  // number of missing characters UP the parent edge
+      };
+    };
+  };
 
-struct MatchResults{
+  struct MatchResults{
     // Each MatchCoord in the buffers below corresponds to the first character
     // of some substring of one of the queries
     MatchCoord* d_match_coords;
@@ -96,47 +96,47 @@ struct MatchResults{
 
     unsigned int numCoords;
 
-// The kernel only needs this array if the queries are coalesced
-// We build it on the host side to make printing simpler.
+    // The kernel only needs this array if the queries are coalesced
+    // We build it on the host side to make printing simpler.
 #if COALESCED_QUERIES
-	int* d_coord_tex_array;
+    int* d_coord_tex_array;
 #endif
 
     int* h_coord_tex_array;
 
     // total device memory occupied by this query set
     size_t bytes_on_board;
-};
+  };
 
-//All times in milliseconds
-struct Statistics {
-    float t_end_to_end;
-    float t_match_kernel;
-    float t_print_kernel;
-    float t_results_to_disk;
-    float t_queries_to_board;
-    float t_match_coords_to_board;
-    float t_match_coords_from_board;
-    float t_tree_to_board;
-    float t_ref_str_to_board;
-    float t_queries_from_disk;
-    float t_ref_from_disk;
-    float t_tree_construction;
-    float t_tree_reorder;
-    float t_tree_flatten;
-	float t_reorder_ref_str;
-	float t_build_coord_offsets;
-	float t_coords_to_buffers;
-    float bp_avg_query_length;
+  //All times in milliseconds
+  struct Statistics {
+    long long t_end_to_end;
+    long long t_match_kernel;
+    long long t_print_kernel;
+    long long t_results_to_disk;
+    long long t_queries_to_board;
+    long long t_match_coords_to_board;
+    long long t_match_coords_from_board;
+    long long t_tree_to_board;
+    long long t_ref_str_to_board;
+    long long t_queries_from_disk;
+    long long t_ref_from_disk;
+    long long t_tree_construction;
+    long long t_tree_reorder;
+    long long t_tree_flatten;
+    long long t_reorder_ref_str;
+    long long t_build_coord_offsets;
+    long long t_coords_to_buffers;
+    long long bp_avg_query_length;
 #if TREE_ACCESS_HISTOGRAM
-	int* node_hist;
-	int* child_hist;
-	int node_hist_size;
+    int* node_hist;
+    int* child_hist;
+    int node_hist_size;
     int child_hist_size;
 #endif
-};
+  };
 
-struct MatchContext {
+  struct MatchContext {
     char* full_ref;
     size_t full_ref_len;
 
@@ -155,13 +155,13 @@ struct MatchContext {
     bool maxmatch;
 
     char* stats_file;
-	char* dotfilename;
+    char* dotfilename;
     char* texfilename;
     Statistics statistics;
-};
+  };
 
 
-struct ReferencePage {
+  struct ReferencePage {
     int begin;
     int end;
     int shadow_left;
@@ -169,49 +169,36 @@ struct ReferencePage {
     MatchResults results;
     unsigned int id;
     Reference ref;
-};
+  };
 
-TextureAddress id2addr(int id);
+  TextureAddress id2addr(int id);
 
-int createReference(const char* fromFile, Reference* ref);
-int destroyReference(Reference* ref);
+  int createReference(const char* fromFile, Reference* ref);
+  int destroyReference(Reference* ref);
 
-int createQuerySet(const char* fromFile, QuerySet* queries);
-int destroyQuerySet(QuerySet* queries);
+  int createQuerySet(const char* fromFile, QuerySet* queries);
+  int destroyQuerySet(QuerySet* queries);
 
-int createMatchContext(Reference* ref,
-                       QuerySet* queries,
-                       MatchResults* matches,
-                       bool on_cpu,
-                       int min_match_length,
-                       char* stats_file,
-                       bool reverse,
-                       bool forwardreverse,
-                       bool forwardcoordinates,
-                       bool showQueryLength,
-                       char* dotfilename,
-                       char* texFilename,
-                       MatchContext* ctx);
-
-
-int destroyMatchContext(MatchContext* ctx);
+  int createMatchContext(Reference* ref,
+      QuerySet* queries,
+      MatchResults* matches,
+      bool on_cpu,
+      int min_match_length,
+      char* stats_file,
+      bool reverse,
+      bool forwardreverse,
+      bool forwardcoordinates,
+      bool showQueryLength,
+      char* dotfilename,
+      char* texFilename,
+      MatchContext* ctx);
 
 
-int matchQueries(MatchContext* ctx, bool unified);
+  int destroyMatchContext(MatchContext* ctx);
 
-void printStringForError(int err);
 
-// Timer management
-struct Timer_t
-{
-  struct timeval start_m;
-  struct timeval end_m;
-};
+  int matchQueries(MatchContext* ctx, bool unified);
 
-char* createTimer();
-void startTimer(char* ptr);
-void stopTimer(char* ptr);
-float getTimerValue(char* ptr);
-void deleteTimer(char* ptr);
+  void printStringForError(int err);
 
 }

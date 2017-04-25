@@ -1,0 +1,1 @@
+./bfs -f ../../data/bfs/inputGen/graph1M.txt -u

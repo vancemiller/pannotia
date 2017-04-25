@@ -52,6 +52,8 @@ int main(int argc, char* argv[]){
 }
 
 void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_blocks) {
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -68,7 +70,7 @@ void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_
   initParams(file_name, num_block_threads, num_blocks, num_elements, mem_size, symbol_type_size);
   printf("Parameters: num_elements: %d, num_blocks: %d, num_block_threads: %d\n----------------------------\n", num_elements, num_blocks, num_block_threads);
   TIMESTAMP(t1);
-  time_serial += ELAPSED(t0, t1);
+  time_pre += ELAPSED(t0, t1);
   ////////LOAD DATA ///////////////
   uint	*sourceData;
   uint	*destData;
@@ -110,7 +112,7 @@ void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_
   loadData(file_name, sourceData, codewords, codewordlens, num_elements, mem_size, H);
 
   TIMESTAMP(t3);
-  time_serial += ELAPSED(t2, t3);
+  time_pre += ELAPSED(t2, t3);
 
   //////// LOAD DATA ///////////////
 
@@ -220,7 +222,7 @@ void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_
 
   compare_vectors((unsigned int*)crefData, (unsigned int*)destData, num_ints);
   TIMESTAMP(t11);
-  time_serial += ELAPSED(t10, t11);
+  time_post += ELAPSED(t10, t11);
 
   if (unified) {
     checkCudaErrors(cudaFree(sourceData));
@@ -239,12 +241,15 @@ void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_
   time_free += ELAPSED(t11, t12);
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t12) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 

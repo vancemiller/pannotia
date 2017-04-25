@@ -68,6 +68,8 @@ __global__ void euclid(LatLong* locations, float* distances, int numRecords, flo
  * This program finds the k-nearest neighbors
  **/
 int main(int argc, char* argv[]) {
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -91,6 +93,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
+  TIMESTAMP(t0)
   int numRecords = loadData(filename, records, &locations, unified);
   if (resultsCount > numRecords)
     resultsCount = numRecords;
@@ -136,10 +139,8 @@ int main(int argc, char* argv[]) {
     print(gridX);
   }
 
-  cudaStream_t stream;
-  assert(cudaStreamCreate(&stream) == cudaSuccess);
-
-  TIMESTAMP(t0);
+  TIMESTAMP(t1);
+  time_pre += ELAPSED(t0, t1);
   /**
    * Allocate memory on host and device
    */
@@ -151,41 +152,37 @@ int main(int argc, char* argv[]) {
     assert(cudaMallocManaged(&distances, sizeof(float) * numRecords) == cudaSuccess);
   }
 
-  TIMESTAMP(t1);
-  time_malloc += ELAPSED(t0, t1);
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
 
   /**
    * Transfer data from host to device
    */
   if (!unified) {
-    cudaMemcpyAsync(d_locations, locations, sizeof(LatLong) * numRecords, cudaMemcpyHostToDevice,
-        stream);
-    cudaStreamSynchronize(stream);
+    cudaMemcpy(d_locations, locations, sizeof(LatLong) * numRecords, cudaMemcpyHostToDevice);
   }
-  TIMESTAMP(t2);
-  time_copy_in += ELAPSED(t1, t2);
+  TIMESTAMP(t3);
+  time_copy_in += ELAPSED(t2, t3);
 
   /**
    * Execute kernel
    */
   if (!unified) {
-    euclid<<<gridDim, threadsPerBlock, 0, stream>>>(d_locations, d_distances, numRecords, lat, lng);
+    euclid<<<gridDim, threadsPerBlock>>>(d_locations, d_distances, numRecords, lat, lng);
   } else {
-    euclid<<<gridDim, threadsPerBlock, 0, stream>>>(locations, distances, numRecords, lat, lng);
+    euclid<<<gridDim, threadsPerBlock>>>(locations, distances, numRecords, lat, lng);
   }
-  cudaStreamSynchronize(stream);
-  TIMESTAMP(t3);
-  time_kernel += ELAPSED(t2, t3);
+  TIMESTAMP(t4);
+  time_kernel += ELAPSED(t3, t4);
 
   /**
    * Copy data from device memory to host memory
    */
   if (!unified) {
-    cudaMemcpyAsync(distances, d_distances, sizeof(float) * numRecords, cudaMemcpyDeviceToHost, stream);
-    cudaStreamSynchronize(stream);
+    cudaMemcpy(distances, d_distances, sizeof(float) * numRecords, cudaMemcpyDeviceToHost);
   }
-  TIMESTAMP(t4);
-  time_copy_out += ELAPSED(t3, t4);
+  TIMESTAMP(t5);
+  time_copy_out += ELAPSED(t4, t5);
 
   // find the resultsCount least distances
   findLowest(records, distances, numRecords, resultsCount);
@@ -196,8 +193,8 @@ int main(int argc, char* argv[]) {
       printf("%s --> Distance=%f\n", records[i].recString, records[i].distance);
     }
   }
-  TIMESTAMP(t5);
-  time_serial += ELAPSED(t4, t5);
+  TIMESTAMP(t6);
+  time_post += ELAPSED(t5, t6);
 
   if (!unified) {
     free(locations);
@@ -209,17 +206,20 @@ int main(int argc, char* argv[]) {
     cudaFree(locations);
     cudaFree(distances);
   }
-  TIMESTAMP(t6);
-  time_free += ELAPSED(t5, t6);
+  TIMESTAMP(t7);
+  time_free += ELAPSED(t6, t7);
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t7) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 
 int loadData(char *filename, std::vector<Record> &records, LatLong** loc, bool unified) {

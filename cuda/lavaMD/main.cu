@@ -19,6 +19,8 @@
   ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
 int main(int argc, char *argv[]) {
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -223,7 +225,7 @@ int main(int argc, char *argv[]) {
 	threads.y = 1;
 
   TIMESTAMP(t2);
-  time_serial += ELAPSED(t1, t2);
+  time_pre += ELAPSED(t1, t2);
 
   if (!unified) {
     cudaMalloc(	(void **)&d_box_gpu,
@@ -309,7 +311,7 @@ int main(int argc, char *argv[]) {
 #endif
 
   TIMESTAMP(t8);
-  time_serial += ELAPSED(t7, t8);
+  time_post += ELAPSED(t7, t8);
 
   if (unified) {
     checkCudaErrors(cudaFree(rv_cpu));
@@ -326,15 +328,16 @@ int main(int argc, char *argv[]) {
   TIMESTAMP(t9);
   time_free += ELAPSED(t8, t9);
 
-  //	DISPLAY TIMING
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t6) * 1e-6);
-
-  return 0.0;																					// always returns 0.0
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t9) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
+

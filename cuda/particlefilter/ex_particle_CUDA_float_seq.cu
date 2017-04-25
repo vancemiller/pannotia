@@ -22,6 +22,14 @@
 #define ELAPSED(start, end) \
   ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
 
+long long time_pre = 0;
+long long time_post = 0;
+long long time_serial = 0;
+long long time_copy_in = 0;
+long long time_copy_out = 0;
+long long time_kernel = 0;
+long long time_malloc = 0;
+long long time_free = 0;
 
 const int threads_per_block = 512;
 
@@ -615,18 +623,13 @@ int findIndex(double * CDF, int lengthCDF, double value) {
  */
 void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, int Nparticles,
     bool unified) {
-  long long time_serial = 0;
-  long long time_copy_in = 0;
-  long long time_copy_out = 0;
-  long long time_kernel = 0;
-  long long time_malloc = 0;
-  long long time_free = 0;
 
   int max_size = IszX * IszY*Nfr;
   //original particle centroid
   double xe = roundDouble(IszY / 2.0);
   double ye = roundDouble(IszX / 2.0);
 
+  TIMESTAMP(t0);
   //expected object locations, compared to center
   int radius = 5;
   int diameter = radius * 2 - 1;
@@ -640,23 +643,33 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
         countOnes++;
     }
   }
+  TIMESTAMP(t1);
+  time_serial += ELAPSED(t0, t1);
   int* objxy;
   if (unified) {
     check_error(cudaMallocManaged(&objxy, countOnes * 2 * sizeof(int)));
   } else {
     objxy = (int*) malloc(countOnes * 2 * sizeof (int));
   }
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
   getneighbors(disk, countOnes, objxy, radius);
   //initial weights are all equal (1/Nparticles)
+  TIMESTAMP(t3);
+  time_pre += ELAPSED(t2, t3);
   double* weights;
   if (unified) {
     check_error(cudaMallocManaged(&weights, sizeof(double) * Nparticles));
   } else {
     weights = (double*) malloc(sizeof(double) * Nparticles);
   }
+  TIMESTAMP(t4);
+  time_malloc += ELAPSED(t3, t4);
   for (x = 0; x < Nparticles; x++) {
     weights[x] = 1 / ((double) (Nparticles));
   }
+  TIMESTAMP(t5);
+  time_pre += ELAPSED(t4, t5);
 
   //initial likelihood to 0.0
   double* arrayX;
@@ -695,7 +708,6 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   int * seed_GPU;
   double* partial_sums;
 
-  TIMESTAMP(t0);
   //CUDA memory allocation
   if (!unified) {
     check_error(cudaMalloc((void **) &I_GPU, sizeof (unsigned char) *IszX * IszY * Nfr));
@@ -715,19 +727,20 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   check_error(cudaMalloc((void **) &ind_GPU, sizeof (int) *countOnes * Nparticles));
   check_error(cudaMalloc((void **) &partial_sums, sizeof(double) * Nparticles));
 
-  TIMESTAMP(t1);
-  time_malloc += ELAPSED(t0, t1);
+  TIMESTAMP(t6);
+  time_malloc += ELAPSED(t5, t6);
 
   //Donnie - this loop is different because in this kernel, arrayX and arrayY
   //  are set equal to xj before every iteration, so effectively, arrayX and
   //  arrayY will be set to xe and ye before the first iteration.
+  // Cool, thanks Donnie.
   for (x = 0; x < Nparticles; x++) {
     xj[x] = xe;
     yj[x] = ye;
   }
 
-  TIMESTAMP(t2);
-  time_serial += ELAPSED(t1, t2);
+  TIMESTAMP(t7);
+  time_pre += ELAPSED(t6, t7);
 
   int k;
   //start send
@@ -748,8 +761,8 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     check_error(cudaMemcpy(yj_GPU, yj, sizeof(double) * Nparticles, cudaMemcpyHostToDevice));
     check_error(cudaMemcpy(seed_GPU, seed, sizeof (int) *Nparticles, cudaMemcpyHostToDevice));
   }
-  TIMESTAMP(t3);
-  time_copy_in += ELAPSED(t2, t3);
+  TIMESTAMP(t8);
+  time_copy_in += ELAPSED(t7, t8);
 
   int num_blocks = ceil((double) Nparticles / (double) threads_per_block);
 
@@ -761,8 +774,8 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   }
   //block till kernels are finished
   cudaThreadSynchronize();
-  TIMESTAMP(t4);
-  time_kernel += ELAPSED(t3, t4);
+  TIMESTAMP(t9);
+  time_kernel += ELAPSED(t8, t9);
 
   if (!unified) {
     cudaFree(xj_GPU);
@@ -776,16 +789,16 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   cudaFree(likelihood_GPU);
   cudaFree(ind_GPU);
   cudaFree(partial_sums);
-  TIMESTAMP(t5);
-  time_free += ELAPSED(t4, t5);
+  TIMESTAMP(t10);
+  time_free += ELAPSED(t9, t10);
 
   if (!unified) {
     check_error(cudaMemcpy(arrayX, arrayX_GPU, sizeof(double) * Nparticles, cudaMemcpyDeviceToHost));
     check_error(cudaMemcpy(arrayY, arrayY_GPU, sizeof(double) * Nparticles, cudaMemcpyDeviceToHost));
     check_error(cudaMemcpy(weights, weights_GPU, sizeof(double) * Nparticles, cudaMemcpyDeviceToHost));
   }
-  TIMESTAMP(t6);
-  time_copy_out += ELAPSED(t5, t6);
+  TIMESTAMP(t11);
+  time_copy_out += ELAPSED(t10, t11);
 
   xe = 0;
   ye = 0;
@@ -799,8 +812,8 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
   double distance = sqrt(pow((double) (xe - (int) roundDouble(IszY / 2.0)), 2) + pow((double) (ye - (int) roundDouble(IszX / 2.0)), 2));
   printf("%lf\n", distance);
 
-  TIMESTAMP(t7);
-  time_serial += ELAPSED(t6, t7);
+  TIMESTAMP(t12);
+  time_post += ELAPSED(t11, t12);
 
   //CUDA freeing of memory
   if (unified) {
@@ -828,17 +841,8 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     free(ind);
     free(u);
   }
-  TIMESTAMP(t8);
-  time_free += ELAPSED(t7, t8);
-
-  printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t8) * 1e-6);
+  TIMESTAMP(t13);
+  time_free += ELAPSED(t12, t13);
 }
 
 int main(int argc, char * argv[]) {
@@ -903,27 +907,29 @@ int main(int argc, char * argv[]) {
     return 0;
   }
   //establish seed
+  TIMESTAMP(t0);
   int* seed;
-  if (unified) {
-    check_error(cudaMallocManaged(&seed, sizeof(int) * Nparticles));
-  } else {
-    seed = (int*) malloc(sizeof(int) * Nparticles);
-  }
-  int i;
-  for (i = 0; i < Nparticles; i++)
-    seed[i] = time(0) * i;
-  //malloc matrix
   unsigned char* I;
   if (unified) {
+    check_error(cudaMallocManaged(&seed, sizeof(int) * Nparticles));
     check_error(cudaMallocManaged(&I, sizeof(unsigned char) * IszX * IszY * Nfr));
   } else {
+    seed = (int*) malloc(sizeof(int) * Nparticles);
     I = (unsigned char *) malloc(sizeof(unsigned char) *IszX * IszY * Nfr);
   }
+  TIMESTAMP(t1);
+  time_malloc += ELAPSED(t0, t1);
+  for (int i = 0; i < Nparticles; i++)
+    seed[i] = time(0) * i;
   //call video sequence
   videoSequence(I, IszX, IszY, Nfr, seed);
   //call particle filter
+  TIMESTAMP(t2);
+  time_serial += ELAPSED(t1, t2);
+
   particleFilter(I, IszX, IszY, Nfr, seed, Nparticles, unified);
 
+  TIMESTAMP(t3);
   if (unified) {
     check_error(cudaFree(I));
     check_error(cudaFree(seed));
@@ -931,5 +937,18 @@ int main(int argc, char * argv[]) {
     free(I);
     free(seed);
   }
-  return 0;
+  TIMESTAMP(t4);
+  time_free += ELAPSED(t3, t4);
+
+  printf("====Timing info====\n");
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
+  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
+  printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
+  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
+  printf("End-to-end = %f ms\n", ELAPSED(t0, t4) * 1e-6);
+  exit(EXIT_SUCCESS);
 }

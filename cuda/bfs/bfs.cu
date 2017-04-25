@@ -131,6 +131,8 @@ int main(int argc, char** argv) {
   cudaStream_t stream;
   checkCudaErrors(cudaStreamCreate(&stream));
 
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -167,7 +169,7 @@ int main(int argc, char** argv) {
   }
 
   TIMESTAMP(t1);
-  time_serial += ELAPSED(t0, t1);
+  time_pre += ELAPSED(t0, t1);
   // allocate host memory
   Node* h_graph_nodes;
   bool* h_graph_mask;
@@ -225,7 +227,7 @@ int main(int argc, char** argv) {
   }
 
   TIMESTAMP(t3);
-  time_serial += ELAPSED(t2, t3);
+  time_pre += ELAPSED(t2, t3);
 
   int* h_graph_edges;
   if (args.unified) {
@@ -248,7 +250,7 @@ int main(int argc, char** argv) {
   }
 
   TIMESTAMP(t5);
-  time_serial += ELAPSED(t4, t5);
+  time_pre += ELAPSED(t4, t5);
 
   // Copy the node list, edge list, masks, and visited nodes to device memory
   Node* d_graph_nodes;
@@ -389,7 +391,7 @@ int main(int argc, char** argv) {
   printf("Result stored in result.txt\n");
 
   TIMESTAMP(t18);
-  time_serial += ELAPSED(t17, t18);
+  time_post += ELAPSED(t17, t18);
 
   // cleanup memory
   if (args.unified) {
@@ -420,13 +422,16 @@ int main(int argc, char** argv) {
   time_free += ELAPSED(t18, t19);
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
   printf("End-to-end = %f ms\n", ELAPSED(t0, t19) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 
 __global__ void Kernel(Node* g_graph_nodes, int* g_graph_edges, bool* g_graph_mask,

@@ -163,6 +163,8 @@ int main(int argc, char** argv) {
   if (filename == 0)
     usage(argv[0]);
 
+  long long time_pre = 0;
+  long long time_post = 0;
   long long time_serial = 0;
   long long time_copy_in = 0;
   long long time_copy_out = 0;
@@ -183,7 +185,7 @@ int main(int argc, char** argv) {
     read(infile, &nfeatures, sizeof(int));
 
     TIMESTAMP(t1);
-    time_serial += ELAPSED(t0, t1);
+    time_pre += ELAPSED(t0, t1);
 
     /* allocate space for features[][] and read attributes of all objects */
     buf = (float*) malloc(npoints * nfeatures * sizeof(float));
@@ -202,7 +204,7 @@ int main(int argc, char** argv) {
     read(infile, buf, npoints * nfeatures * sizeof(float));
     close(infile);
     TIMESTAMP(t3);
-    time_serial += ELAPSED(t2, t3);
+    time_pre += ELAPSED(t2, t3);
   } else {
     FILE *infile;
     if ((infile = fopen(filename, "r")) == NULL) {
@@ -222,7 +224,7 @@ int main(int argc, char** argv) {
       }
     }
     TIMESTAMP(t1);
-    time_serial += ELAPSED(t0, t1);
+    time_pre += ELAPSED(t0, t1);
 
     /* allocate space for features[] and read attributes of all objects */
     buf = (float*) malloc(npoints * nfeatures * sizeof(float));
@@ -249,7 +251,7 @@ int main(int argc, char** argv) {
     }
     fclose(infile);
     TIMESTAMP(t3);
-    time_serial += ELAPSED(t2, t3);
+    time_pre += ELAPSED(t2, t3);
   }
   TIMESTAMP(t1);
 
@@ -280,7 +282,7 @@ int main(int argc, char** argv) {
   float min_rmse = 0;
 
   TIMESTAMP(t2);
-  time_serial += ELAPSED(t1, t2);
+  time_pre += ELAPSED(t1, t2);
 
   /* allocate memory for membership */
   membership = (int*) malloc(npoints * sizeof(int));
@@ -305,7 +307,7 @@ int main(int argc, char** argv) {
     num_blocks = num_blocks_perdim * num_blocks_perdim;
 
     TIMESTAMP(t5);
-    time_serial += ELAPSED(t4, t5);
+    time_pre += ELAPSED(t4, t5);
 
     /* allocate memory for block_new_centers[] (host) */
     block_new_centers = (float *) malloc(nclusters * nfeatures * sizeof(float));
@@ -328,7 +330,7 @@ int main(int argc, char** argv) {
       membership_new[i] = -1;
     }
     TIMESTAMP(t7);
-    time_serial += ELAPSED(t6, t7);
+    time_pre += ELAPSED(t6, t7);
 
     if (unified) {
       feature_flipped_d = features[0];
@@ -451,7 +453,7 @@ int main(int argc, char** argv) {
   }
 
   TIMESTAMP(t21);
-  time_serial += ELAPSED(t20, t21);
+  time_post += ELAPSED(t20, t21);
   /* free up memory */
   if (unified) {
     cudaFree(features[0]);
@@ -463,13 +465,16 @@ int main(int argc, char** argv) {
   time_free += ELAPSED(t21, t22);
 
   printf("====Timing info====\n");
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc * 1e-6);
+  printf("time pre = %f ms\n", time_pre * 1e-6);
   printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
   printf("time kernel = %f ms\n", time_kernel * 1e-6);
+  printf("time serial = %f ms\n", time_serial * 1e-6);
   printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time GPU free = %f ms\n", time_free * 1e-6);
+  printf("time post = %f ms\n", time_post * 1e-6);
+  printf("time free = %f ms\n", time_free * 1e-6);
   printf("End-to-end = %f ms\n", ELAPSED(t0, t22) * 1e-6);
+  exit(EXIT_SUCCESS);
 }
 
 /* ------------------- kmeansCuda() ------------------------ */
