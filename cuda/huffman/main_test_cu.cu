@@ -23,14 +23,7 @@
 #include "pack_kernels.cu"
 #include "cpuencode.h"
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-}
-
-#define ELAPSED(start, end) \
-  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+#include "../timing.h"
 
 void runVLCTest(char *file_name, uint num_block_threads, bool unified=false, uint num_blocks=1);
 
@@ -52,14 +45,14 @@ int main(int argc, char* argv[]){
 }
 
 void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_blocks) {
-  long long time_pre = 0;
-  long long time_post = 0;
-  long long time_serial = 0;
-  long long time_copy_in = 0;
-  long long time_copy_out = 0;
-  long long time_kernel = 0;
-  long long time_malloc = 0;
-  long long time_free = 0;
+  float time_pre = 0;
+  float time_post = 0;
+  float time_serial = 0;
+  float time_copy_in = 0;
+  float time_copy_out = 0;
+  float time_kernel = 0;
+  float time_malloc = 0;
+  float time_free = 0;
   printf("CUDA! Starting VLC Tests!\n");
   unsigned int num_elements; //uint num_elements = num_blocks * num_block_threads;
   unsigned int mem_size; //uint mem_size = num_elements * sizeof(int);
@@ -108,13 +101,14 @@ void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_
   memset(codewords,    0, NUM_SYMBOLS*symbol_type_size);
   memset(codewordlens, 0, NUM_SYMBOLS*symbol_type_size);
   memset(cindex2, 0, num_blocks*sizeof(int));
-  //////// LOAD DATA ///////////////
-  loadData(file_name, sourceData, codewords, codewordlens, num_elements, mem_size, H);
-
   TIMESTAMP(t3);
   time_pre += ELAPSED(t2, t3);
 
   //////// LOAD DATA ///////////////
+  loadData(file_name, sourceData, codewords, codewordlens, num_elements, mem_size, H);
+
+  //////// LOAD DATA ///////////////
+  TIMESTAMP(t3p);
 
   unsigned int	*d_sourceData, *d_destData, *d_destDataPacked;
   unsigned int	*d_codewords, *d_codewordlens;
@@ -241,15 +235,15 @@ void runVLCTest(char *file_name, uint num_block_threads, bool unified, uint num_
   time_free += ELAPSED(t11, t12);
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time pre = %f ms\n", time_pre * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time post = %f ms\n", time_post * 1e-6);
-  printf("time free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t12) * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc);
+  printf("time pre = %f ms\n", time_pre);
+  printf("time copyIn = %f ms\n", time_copy_in);
+  printf("time kernel = %f ms\n", time_kernel);
+  printf("time serial = %f ms\n", time_serial);
+  printf("time copyOut = %f ms\n", time_copy_out);
+  printf("time post = %f ms\n", time_post);
+  printf("time free = %f ms\n", time_free);
+  printf("time end-to-end = %f ms\n", ELAPSED(t0, t12));
   exit(EXIT_SUCCESS);
 }
 

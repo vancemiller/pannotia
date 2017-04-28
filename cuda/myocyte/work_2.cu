@@ -12,25 +12,18 @@
 #include "embedded_fehlberg_7_8_2.cu"
 #include "solver_2.cu"
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-}
-
-#define ELAPSED(start, end) \
-  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+#include "../timing.h"
 
 int work_2(int xmax, int workload, bool unified) {
 
-  long long time_pre = 0;
-  long long time_post = 0;
-  long long time_serial = 0;
-  long long time_copy_in = 0;
-  long long time_copy_out = 0;
-  long long time_kernel = 0;
-  long long time_malloc = 0;
-  long long time_free = 0;
+  float time_pre = 0;
+  float time_post = 0;
+  float time_serial = 0;
+  float time_copy_in = 0;
+  float time_copy_out = 0;
+  float time_kernel = 0;
+  float time_malloc = 0;
+  float time_free = 0;
 
   //============================================================60
   //		COUNTERS, POINTERS
@@ -224,6 +217,7 @@ int work_2(int xmax, int workload, bool unified) {
       d_initvalu_temp,
       d_finavalu_temp);
 
+  cudaThreadSynchronize();
   TIMESTAMP(t4);
   time_kernel += ELAPSED(t3, t4);
 
@@ -269,6 +263,8 @@ int work_2(int xmax, int workload, bool unified) {
   //============================================================60
 
   TIMESTAMP(t6);
+  time_post += ELAPSED(t5, t6);
+
   if (unified) {
     checkCudaErrors(cudaFree(y));
     checkCudaErrors(cudaFree(x));
@@ -305,15 +301,15 @@ int work_2(int xmax, int workload, bool unified) {
   //================================================================================80
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time pre = %f ms\n", time_pre * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time post = %f ms\n", time_post * 1e-6);
-  printf("time free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t7) * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc);
+  printf("time pre = %f ms\n", time_pre);
+  printf("time copyIn = %f ms\n", time_copy_in);
+  printf("time kernel = %f ms\n", time_kernel);
+  printf("time serial = %f ms\n", time_serial);
+  printf("time copyOut = %f ms\n", time_copy_out);
+  printf("time post = %f ms\n", time_post);
+  printf("time free = %f ms\n", time_free);
+  printf("time end-to-end = %f ms\n", ELAPSED(t0, t7));
   exit(EXIT_SUCCESS);
 
   //====================================================================================================100

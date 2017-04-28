@@ -15,15 +15,7 @@
 // includes, kernels
 #include "srad_kernel.cu"
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-  }
-
-#define ELAPSED(start, end) \
-  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
-
+#include "../timing.h"
 
 void random_matrix(float *I, int rows, int cols);
 void runTest(int argc, char** argv);
@@ -53,14 +45,14 @@ int main(int argc, char** argv) {
 }
 
 void runTest(int argc, char** argv) {
-  long long time_pre = 0;
-  long long time_post = 0;
-  long long time_serial = 0;
-  long long time_copy_in = 0;
-  long long time_copy_out = 0;
-  long long time_kernel = 0;
-  long long time_malloc = 0;
-  long long time_free = 0;
+  float time_pre = 0;
+  float time_post = 0;
+  float time_serial = 0;
+  float time_copy_in = 0;
+  float time_copy_out = 0;
+  float time_kernel = 0;
+  float time_malloc = 0;
+  float time_free = 0;
   int rows, cols, size_I, size_R, niter = 10, iter;
   float *I, *J, lambda, q0sqr, sum, sum2, tmp, meanROI, varROI;
 
@@ -212,15 +204,15 @@ void runTest(int argc, char** argv) {
   time_free += ELAPSED(t4, t5);
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time pre = %f ms\n", time_pre * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time post = %f ms\n", time_post * 1e-6);
-  printf("time free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t5) * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc);
+  printf("time pre = %f ms\n", time_pre);
+  printf("time copyIn = %f ms\n", time_copy_in);
+  printf("time kernel = %f ms\n", time_kernel);
+  printf("time serial = %f ms\n", time_serial);
+  printf("time copyOut = %f ms\n", time_copy_out);
+  printf("time post = %f ms\n", time_post);
+  printf("time free = %f ms\n", time_free);
+  printf("time end-to-end = %f ms\n", ELAPSED(t0, t5));
   exit(EXIT_SUCCESS);
 }
 

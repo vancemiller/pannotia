@@ -12,14 +12,7 @@
 #include "backprop_cuda_kernel.cu"
 #include "backprop.h"
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-  }
-
-#define ELAPSED(start, end) \
-  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+#include "../timing.h"
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
@@ -27,14 +20,14 @@
   }
 
 // global timing vars
-long long time_pre = 0;
-long long time_post = 0;
-long long time_serial = 0;
-long long time_copy_in = 0;
-long long time_copy_out = 0;
-long long time_kernel = 0;
-long long time_malloc = 0;
-long long time_free = 0;
+float time_pre = 0;
+float time_post = 0;
+float time_serial = 0;
+float time_copy_in = 0;
+float time_copy_out = 0;
+float time_kernel = 0;
+float time_malloc = 0;
+float time_free = 0;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                                //
@@ -117,7 +110,7 @@ BPNN* bpnn_internal_create(int n_in, int n_hidden, int n_out, bool unified);
 
 void bpnn_free(BPNN* net, bool unified);
 
-void bpnn_train_cuda(BPNN *net, cudaStream_t stream, bool unified);
+void bpnn_train_cuda(BPNN *net, bool unified);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                                                                //
@@ -143,9 +136,6 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
 
-  cudaStream_t stream;
-  checkCudaErrors(cudaStreamCreate(&stream));
-
   // TODO make argument
   int seed = 7;
   srand(seed);
@@ -162,21 +152,21 @@ int main(int argc, char** argv) {
   time_pre+= ELAPSED(t1, t2);
 
   VPRINT(args.verbose, "Starting training kernel\n");
-  bpnn_train_cuda(net, stream, args.unified);
+  bpnn_train_cuda(net, args.unified);
   bpnn_free(net, args.unified);
   VPRINT(args.verbose, "Training done\n");
   TIMESTAMP(t3);
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time pre = %f ms\n", time_pre * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time post = %f ms\n", time_post * 1e-6);
-  printf("time free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t3) * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc);
+  printf("time pre = %f ms\n", time_pre);
+  printf("time copyIn = %f ms\n", time_copy_in);
+  printf("time kernel = %f ms\n", time_kernel);
+  printf("time serial = %f ms\n", time_serial);
+  printf("time copyOut = %f ms\n", time_copy_out);
+  printf("time post = %f ms\n", time_post);
+  printf("time free = %f ms\n", time_free);
+  printf("time end-to-end = %f ms\n", ELAPSED(t0, t3));
   exit(EXIT_SUCCESS);
 }
 
@@ -379,7 +369,7 @@ BPNN* bpnn_create(int n_in, int n_hidden, int n_out, bool unified) {
   return newnet;
 }
 
-void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
+void bpnn_train_cuda(BPNN* net, bool unified) {
   int in = net->input_n;
   int hid = net->hidden_n;
   int out = net->output_n;
@@ -422,9 +412,8 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
 
   printf("Performing GPU computation\n");
 
-  bpnn_layerforward_CUDA<<<grid, threads, 0, stream>>>(input_cuda, output_hidden_cuda,
+  bpnn_layerforward_CUDA<<<grid, threads>>>(input_cuda, output_hidden_cuda,
       input_hidden_cuda, hidden_partial_sum, in, hid);
-  checkCudaErrors(cudaStreamSynchronize(stream));
   TIMESTAMP(t3);
   time_kernel += ELAPSED(t2, t3);
 
@@ -478,9 +467,8 @@ void bpnn_train_cuda(BPNN* net, cudaStream_t stream, bool unified) {
   TIMESTAMP(t7);
   time_copy_in += ELAPSED(t6, t7);
 
-  bpnn_adjust_weights_cuda<<<grid, threads, 0, stream>>>(hidden_delta_cuda, hid, input_cuda, in,
+  bpnn_adjust_weights_cuda<<<grid, threads, 0>>>(hidden_delta_cuda, hid, input_cuda, in,
       input_hidden_cuda, input_prev_weights_cuda);
-  checkCudaErrors(cudaStreamSynchronize(stream));
   TIMESTAMP(t8);
   time_kernel += ELAPSED(t7, t8);
 

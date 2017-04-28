@@ -21,14 +21,7 @@ using namespace std;
 #define MAXBLOCKS 65536
 #define CUDATIME
 
-#define TIMESTAMP(NAME) \
- struct timespec NAME; \
-  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-  }
-
-#define ELAPSED(start, end) \
-  (uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec
+#include "../timing.h"
 
 #define VPRINT(verbose, format, ...) \
   if (verbose) {\
@@ -136,9 +129,9 @@ void freeHostMem(bool unified) {
 // pgain Entry - CUDA SETUP + CUDA CALL
 //=======================================
 float pgain(long x, Points *points, float z, long int *numcenters, int kmax, bool *is_center,
-    int *center_table, bool *switch_membership, bool isCoordChanged, long long *pre_t,
-    long long *post_t, long long *serial_t, long long *cpu_to_gpu_t, long long *gpu_to_cpu_t,
-    long long *alloc_t, long long *kernel_t, long long *free_t, bool unified) {
+    int *center_table, bool *switch_membership, bool isCoordChanged, float *pre_t,
+    float *post_t, float *serial_t, float *cpu_to_gpu_t, float *gpu_to_cpu_t,
+    float *alloc_t, float *kernel_t, float *free_t, bool unified) {
 
   TIMESTAMP(t0);
 

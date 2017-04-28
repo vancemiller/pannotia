@@ -143,8 +143,8 @@ void* localSearchSub(void*);
 void localSearch(Points*, long, long, long*, bool);
 void outcenterIDs(Points*, long*, char*);
 void streamCluster(PStream*, long, long, int, long, long, char*);
-float pgain(long, Points*, float, long int*, int, bool*, int*, bool*, bool, long long*, long long*,
-    long long*, long long*,  long long*, long long*, long long*, long long*, bool unified);
+float pgain(long, Points*, float, long int*, int, bool*, int*, bool*, bool, float*, float*,
+    float*, float*,  float*, float*, float*, float*, bool unified);
 void allocDevMem(int, int, int);
 void allocHostMem(int, int, int);
 void freeDevMem(bool);

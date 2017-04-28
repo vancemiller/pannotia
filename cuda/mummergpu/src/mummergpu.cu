@@ -103,15 +103,7 @@ unsigned int num_bind_tex_calls = 0;
   ++num_bind_tex_calls;													 \
 } while(0)
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-}
-
-#define ELAPSED(start, end) \
-  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
-
+#include "../../timing.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward

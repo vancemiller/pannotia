@@ -38,14 +38,14 @@ static int nproc; 					//# of threads
 bool isCoordChanged;
 
 // GPU Timing Info
-long long pre_t;
-long long post_t;
-long long serial_t;
-long long cpu_to_gpu_t;
-long long gpu_to_cpu_t;
-long long alloc_t;
-long long kernel_t;
-long long free_t;
+float pre_t;
+float post_t;
+float serial_t;
+float cpu_to_gpu_t;
+float gpu_to_cpu_t;
+float alloc_t;
+float kernel_t;
+float free_t;
 
 // instrumentation code
 #ifdef PROFILE
@@ -55,14 +55,7 @@ long long time_select_feasible;
 long long time_shuffle;
 #endif
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-  }
-
-#define ELAPSED(start, end) \
-  ((uint64_t) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+#include "../timing.h"
 
 void inttofile(int data, char *filename) {
   FILE *fp = fopen(filename, "w");
@@ -915,14 +908,14 @@ int main(int argc, char **argv) {
   printf("\n\n");
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", alloc_t * 1e-6);
-  printf("time pre = %f ms\n", pre_t * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", cpu_to_gpu_t * 1e-6);
-  printf("time kernel = %f ms\n", kernel_t * 1e-6);
-  printf("time serial = %f ms\n", serial_t * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", gpu_to_cpu_t * 1e-6);
-  printf("time post = %f ms\n", post_t * 1e-6);
-  printf("time free = %f ms\n", free_t * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t1, t2) * 1e-6);
+  printf("time malloc = %f ms\n", alloc_t);
+  printf("time pre = %f ms\n", pre_t);
+  printf("time copyIn = %f ms\n", cpu_to_gpu_t);
+  printf("time kernel = %f ms\n", kernel_t);
+  printf("time serial = %f ms\n", serial_t);
+  printf("time copyOut = %f ms\n", gpu_to_cpu_t);
+  printf("time post = %f ms\n", post_t);
+  printf("time free = %f ms\n", free_t);
+  printf("time end-to-end = %f ms\n", ELAPSED(t1, t2));
   exit(EXIT_SUCCESS);
 }

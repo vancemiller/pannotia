@@ -24,14 +24,16 @@
 #define LATITUDE_POS 28 // character position of the latitude value in each record
 #define OPEN 10000  // initial value of nearest neighbors
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-  fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-}
+#include "../timing.h"
 
-#define ELAPSED(start, end) \
-  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+float time_pre = 0;
+float time_post = 0;
+float time_serial = 0;
+float time_copy_in = 0;
+float time_copy_out = 0;
+float time_kernel = 0;
+float time_malloc = 0;
+float time_free = 0;
 
 typedef struct latLong {
   float lat;
@@ -68,14 +70,6 @@ __global__ void euclid(LatLong* locations, float* distances, int numRecords, flo
  * This program finds the k-nearest neighbors
  **/
 int main(int argc, char* argv[]) {
-  long long time_pre = 0;
-  long long time_post = 0;
-  long long time_serial = 0;
-  long long time_copy_in = 0;
-  long long time_copy_out = 0;
-  long long time_kernel = 0;
-  long long time_malloc = 0;
-  long long time_free = 0;
   int i = 0;
   float lat, lng;
   int quiet = 0, timing = 0, platform = 0, device = 0;
@@ -210,15 +204,15 @@ int main(int argc, char* argv[]) {
   time_free += ELAPSED(t6, t7);
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time pre = %f ms\n", time_pre * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time post = %f ms\n", time_post * 1e-6);
-  printf("time free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t7) * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc);
+  printf("time pre = %f ms\n", time_pre);
+  printf("time copyIn = %f ms\n", time_copy_in);
+  printf("time kernel = %f ms\n", time_kernel);
+  printf("time serial = %f ms\n", time_serial);
+  printf("time copyOut = %f ms\n", time_copy_out);
+  printf("time post = %f ms\n", time_post);
+  printf("time free = %f ms\n", time_free);
+  printf("time end-to-end = %f ms\n", ELAPSED(t0, t7));
   exit(EXIT_SUCCESS);
 }
 
@@ -231,6 +225,7 @@ int loadData(char *filename, std::vector<Record> &records, LatLong** loc, bool u
 
   /**Main processing **/
 
+  TIMESTAMP(t0);
   flist = fopen(filename, "r");
   while (!feof(flist)) {
     /**
@@ -277,14 +272,20 @@ int loadData(char *filename, std::vector<Record> &records, LatLong** loc, bool u
   }
   fclose(flist);
 
+  TIMESTAMP(t1);
+  time_pre += ELAPSED(t0, t1);
   if (!unified) {
     *loc = (LatLong*) malloc(sizeof(LatLong) * locations.size());
   } else {
     assert(cudaMallocManaged(loc, sizeof(LatLong) * locations.size()) == cudaSuccess);
   }
+  TIMESTAMP(t2);
+  time_malloc += ELAPSED(t1, t2);
   for (int i = 0; i < locations.size(); i++) {
     (*loc)[i] = locations[i];
   }
+  TIMESTAMP(t3);
+  time_pre += ELAPSED(t2, t3);
 
   return recNum;
 }

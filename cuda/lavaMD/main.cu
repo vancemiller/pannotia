@@ -9,24 +9,17 @@
 #include "./kernel/kernel_gpu_cuda.cu"
 #include "helper_cuda.h"
 
-#define TIMESTAMP(NAME) \
-  struct timespec NAME; \
-  if (clock_gettime(CLOCK_MONOTONIC, &NAME)) { \
-    fprintf(stderr, "Failed to get time: %s\n", strerror(errno)); \
-  }
-
-#define ELAPSED(start, end) \
-  ((long long int) 1e9 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec)
+#include "../timing.h"
 
 int main(int argc, char *argv[]) {
-  long long time_pre = 0;
-  long long time_post = 0;
-  long long time_serial = 0;
-  long long time_copy_in = 0;
-  long long time_copy_out = 0;
-  long long time_kernel = 0;
-  long long time_malloc = 0;
-  long long time_free = 0;
+  float time_pre = 0;
+  float time_post = 0;
+  float time_serial = 0;
+  float time_copy_in = 0;
+  float time_copy_out = 0;
+  float time_kernel = 0;
+  float time_malloc = 0;
+  float time_free = 0;
 
   printf("thread block size of kernel = %d \n", NUMBER_THREADS);
 
@@ -329,15 +322,15 @@ int main(int argc, char *argv[]) {
   time_free += ELAPSED(t8, t9);
 
   printf("====Timing info====\n");
-  printf("time malloc = %f ms\n", time_malloc * 1e-6);
-  printf("time pre = %f ms\n", time_pre * 1e-6);
-  printf("time CPU to GPU memory copy = %f ms\n", time_copy_in * 1e-6);
-  printf("time kernel = %f ms\n", time_kernel * 1e-6);
-  printf("time serial = %f ms\n", time_serial * 1e-6);
-  printf("time GPU to CPU memory copy back = %f ms\n", time_copy_out * 1e-6);
-  printf("time post = %f ms\n", time_post * 1e-6);
-  printf("time free = %f ms\n", time_free * 1e-6);
-  printf("End-to-end = %f ms\n", ELAPSED(t0, t9) * 1e-6);
+  printf("time malloc = %f ms\n", time_malloc);
+  printf("time pre = %f ms\n", time_pre);
+  printf("time copyIn = %f ms\n", time_copy_in);
+  printf("time kernel = %f ms\n", time_kernel);
+  printf("time serial = %f ms\n", time_serial);
+  printf("time copyOut = %f ms\n", time_copy_out);
+  printf("time post = %f ms\n", time_post);
+  printf("time free = %f ms\n", time_free);
+  printf("time end-to-end = %f ms\n", ELAPSED(t0, t9));
   exit(EXIT_SUCCESS);
 }
 
